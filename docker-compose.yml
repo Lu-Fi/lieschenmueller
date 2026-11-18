@@ -1,0 +1,44 @@
+# Laeuft mit podman-compose (Fedora) und Docker Compose (TrueNAS SCALE).
+# Host-Netzwerk: SIP/RTP ohne NAT-Probleme.
+# Protokolle begrenzen (enthalten Betriebsdaten): je Dienst hoechstens 3 Dateien a 10 MB (json-file; podman: k8s-file/journald ignorieren max-file)
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  asterisk:
+    image: docker.io/andrius/asterisk:latest
+    network_mode: host
+    restart: unless-stopped
+    logging: *logging
+    volumes:
+      - ./asterisk/conf/pjsip.conf:/etc/asterisk/pjsip.conf:ro,Z
+      - ./asterisk/conf/extensions.conf:/etc/asterisk/extensions.conf:ro,Z
+      - ./asterisk/conf/modules.conf:/etc/asterisk/modules.conf:ro,Z
+      - ./asterisk/conf/manager.conf:/etc/asterisk/manager.conf:ro,Z
+      - ./asterisk/conf/musiconhold.conf:/etc/asterisk/musiconhold.conf:ro,Z
+      - ./data/rec-in:/recordings:z
+      - ./data/sounds:/sounds:ro,z
+      - ./data/asterisk:/etc/asterisk/dyn:ro,z
+    healthcheck:
+      test: ["CMD-SHELL", "asterisk -rx 'core show uptime' >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  bridge:
+    build: ./bridge
+    network_mode: host
+    restart: unless-stopped
+    logging: *logging
+    env_file: .env
+    environment:
+      DB_PATH: /data/lieschen.db
+      TZ: Europe/Berlin
+    volumes:
+      - ./data:/data:z
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('WEB_PORT','8080')+'/login',timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3

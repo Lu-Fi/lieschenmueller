@@ -1,0 +1,9 @@
+{
+  "name": "campaigns",
+  "title": "Kampagnen",
+  "version": "1.0.0",
+  "api": 1,
+  "description": "Mehrere Personen nacheinander anrufen lassen (z. B. Termine vereinbaren): Ziele aus dem Telefonbuch, Anrufzeiten, Wiederholungen, Anrufbeantworter-Erkennung und Terminpool mit Buchung.",
+  "author": "Lieschen Müller",
+  "default_enabled": true
+}

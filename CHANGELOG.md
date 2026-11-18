@@ -1,0 +1,202 @@
+# Changelog
+
+Alle nennenswerten Änderungen. Die Entwicklung begann am 17.10.2026; die Versionsnummern fassen den Stand nachträglich zusammen
+(Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/)).
+
+## [Unveröffentlicht]
+### Hinzugefügt
+- **Bilder der Oberfläche** in `docs/img/` (README-Abschnitt „Bilder“, eingebunden in fünf Wiki-Seiten), nur mit erfundenen Demo-Daten. Erzeugt mit `tools/demo_shots.py`: startet `tools/demo_server.py` (Wegwerf-Bridge im Test-Image ohne Netz, Unix-Socket, Fake-Fritzbox/-Asterisk, kein Gemini, keine Mails) mit frischer Datenbank aus `tools/demo_seed.py` und nimmt mit Firefox headless (Marionette, nur Seiteninhalt) hell und dunkel auf; `--serve` startet nur die Demo (http://127.0.0.1:18093).
+- **`install.sh`** (POSIX sh): prüft Linux, Docker mit Compose-Plugin bzw. podman mit podman-compose und python3 (sonst klare Anleitung), legt `.env` aus `.env.example` an (eine vorhandene nie überschreiben) mit zufälligem `UI_PASSWORD` und `AMI_SECRET`, wählt einen freien `WEB_PORT`, führt `asterisk/render.sh` und `compose up -d --build` aus, wartet auf „healthy“ und zeigt URL, Admin-Passwort (einmal), LAN-IP und die nächsten Schritte. Wiederholbar; `--no-start`, `--yes`, `--help`. **`--update`** bzw. `update.sh`: `data/` als `backup/lieschen-data-<Datum>.tar.gz` sichern (Datenbank vorher konsistent kopiert), `git pull` (bei ZIP Hinweis), neu rendern, bauen, starten. podman ohne root: Gruppe der Asterisk-Dateien im podman-Namensraum setzen.
+- **Einrichtungsassistent** in der Weboberfläche (Admins): fünf Schritte mit Fortschrittsanzeige – Gemini-Schlüssel (Test), Fritzbox/TR-064 (Test), IP-Telefon (Kennwortprüfung, Live-Anzeige der Anmeldung), Rufnummern („Asterisk antwortet auf“), Abschluss mit Hinweisen zur Anrufregel „Assistent“ und zum Testanruf. Erscheint von selbst, solange etwas fehlt und die Einrichtung noch nie vollständig war (meta `setup_done`); „Später“ blendet ihn aus (meta `setup_dismissed`), Einstellungen → Allgemein öffnet ihn wieder. Neu: `GET/PUT /api/setup` (nur Admins, keine Zugangsdaten in der Antwort). Hilfethema „Einrichtungsassistent“.
+### Behoben
+- **Dialplan-Notbetrieb mit Vorwahl:** Antwortete die Bridge bei einem ausgehenden Gespräch über 99NNN nicht, entfernte der Dialplan nur die Vorwahl `000`; mit dem Standard `*77` scheiterte der Anruf. Jetzt steht die konfigurierte Vorwahl als Asterisk-Global `REC_PREFIX` in `data/asterisk/globals.conf` (`#tryinclude` in `extensions.conf`; `render.py` legt die Datei an, die Bridge schreibt sie beim Start und beim Speichern und setzt sie zusätzlich per AMI `Setvar`). **Nach dem Update `./asterisk/render.sh` und Dialplan neu laden** (`install.sh --update` erledigt das).
+- **Wächter (`ops/watchdog.py`):** suchte `[99613]` in `asterisk/conf/pjsip.conf`; seit 2026-11 stehen die Klingel-Rufnummern in `data/asterisk/fritz.conf`. Er prüft jetzt jede dort eingetragene 99NNN (Alarm je Nummer nach 7 Minuten), ohne Nummer nur die Grundleitung; die Mail nennt keine feste Vorwahl `000` mehr.
+### Hinzugefügt
+- **Ausgehende Gespräche je Benutzer mitschreiben** (Meine Einstellungen → „Ausgehende Gespräche“, Benutzer-Editor → Erreichbarkeit): `staff.rec_out` = aus | Aufnahme und Transkript | nur Transkript (Audio nach dem Transkribieren gelöscht, `rec_keep=0`) | nur an bestimmte Nummern (`rec_out_numbers`, `*` am Ende wie bei „nicht stören“); `rec_out_notice` = Hinweis-Ansage (Standard an, Abschalten nur mit Warnhinweis). Beim Einschalten stellt die App die Telefone unter „Klingelt im Büro an“ (`**NNN`, nur wenn 99NNN eingerichtet, in der Fritzbox angelegt und bei Asterisk angemeldet) in der Fritzbox auf ausgehend 99NNN und merkt sich die bisherige Nummer (meta `out_orig:<**NNN>`); „Aus“ stellt zurück. Scheitert ein Telefon, werden die schon umgestellten zurückgestellt und nichts gespeichert (409 mit Grund). Neues Modul `bridge/app/outrec.py`, Fritzbox-Weboberfläche `fritzweb.dect_set_out` / `ip_set_out` (mit Gegenlesen).
+- **outcall:** Absender 99NNN → Telefon → Benutzer. Hat er die Mitschrift an und steht das Telefon bewusst auf 99NNN, wird ohne Vorwahl nach seiner Einstellung mitgeschrieben (Notrufe nie). Die Anrufliste zeigt „Name (**NNN, ausgehend)“; der Benutzer sieht seine Mitschriften (`calls.user_id`, `owner_staff_id`), auch bei der Vorwahl, wenn das Telefon genau einem Benutzer gehört. Der Dialplan übergibt dafür `from=${CALLERID(num)}` an `/internal/outcall` (**Dialplan neu rendern und laden**).
+- **Notbetrieb:** Hintergrundprüfung alle 30 s; ist die 99NNN eines umgestellten Telefons länger als 90 s nicht bei Asterisk angemeldet (oder Asterisk nicht erreichbar), zurück auf die bisherige Nummer (meta `out_fallback:<**NNN>`), Mail an alle aktiven Mail-Empfänger, Eintrag im Protokoll; wieder angemeldet → wieder 99NNN. Beim Start Abgleich mit der Fritzbox. Grenze: Fällt der ganze Rechner aus, kann niemand zurückstellen (dann von Hand in der Fritzbox).
+- Tabelle „Anruferanzeige an den Telefonen“: Badge „ausgehend: 99NNN (Mitschrift)“ bzw. „Notbetrieb“; Ausschalten einer Klingel-Rufnummer stellt die ausgehende Nummer zuerst zurück.
+- Panel „Asterisk (LieschenMüller) antwortet auf“: **ausgehende Nummer** wählbar (echte Rufnummern, `PUT /api/fritz/asterisk/out`, Weboberfläche mit Gegenlesen) – diese Nummer sieht der Angerufene bei Gesprächen über Asterisk.
+- Hilfethema „Ausgehende Gespräche mitschreiben“.
+### Geändert
+- **99613 ist keine feste Klingel-Rufnummer mehr:** AOR und Endpoint `[99613]` stehen nicht mehr in `asterisk/templates/pjsip.conf.tpl`; 99613 ist eine Klingel-Rufnummer wie jede 99NNN (Tabelle „Anruferanzeige an den Telefonen“, ein- und ausschaltbar). Die Nummer(n) für „alle Telefone klingeln“ (Einstellung `ring_all`, Voreinstellung weiter 99613, mehrere mit +) richtet Asterisk immer selbst ein (AOR + Endpoint in `fritz.conf`); sie lassen sich in der Tabelle nicht ausschalten (409), bis unter Einstellungen → Klingeln der Telefone eine andere steht, z. B. die des Empfangs (99611). Beim Setzen einer 99NNN, die in der Fritzbox fehlt, gibt es einen Hinweis.
+- **Migration** (einmalig, Marker `ring_613_free`): Beim ersten Start trägt die App 99613 in `ring_lines` und `ring_ok` ein, damit bestehende Installationen (Wahlregel „000 → über 99613“, Klingeln) unverändert weiterlaufen. Danach lässt sich 99613 normal ausschalten – vorher Wahlregel und „alle Telefone klingeln“ umstellen.
+- Tooltips in der Tabelle „Anruferanzeige an den Telefonen“ (Spalten, Status, Knöpfe, Schalter) und bei den Einstellungen „Klingeln der Telefone“ und „Vorwahl für aufgezeichnete ausgehende Gespräche“; neues Hilfethema „Klingel-Rufnummern 99…“.
+### Hinzugefügt
+- **Anruferanzeige an den Telefonen, DECT ohne Handarbeit:** Beim Einschalten weist die App die Klingel-Rufnummer 99NNN dem DECT-Telefon in der Fritzbox selbst als ankommende Nummer zu (Weboberfläche `edit_dect_num` über `bridge/app/fritzweb.py`, gleiche Zugangsdaten wie TR-064), liest danach nach und stellt bei Abweichung den alten Stand wieder her; Ausschalten nimmt sie wieder heraus. Telefone auf „alle Rufnummern“ werden nicht von selbst umgestellt („Umstellen?“ mit Rückfrage: ausgehende Nummer + eigene 99NNN). IP-Telefone weiterhin nur gelesen (TR-064), analoge Anschlüsse unverändert; das Häkchen „zugewiesen“ bleibt als Rückfall, wenn die Fritzbox nicht lesbar ist oder das Schreiben scheitert.
+### Geändert
+- Status in der Anrufliste: Nimmt eine Person ab, bevor die KI annimmt, steht **„Angenommen“** (vorher immer „Durchgestellt“). Legt der Anrufer auf, ohne dass jemand abnahm und ohne dass die KI sprach, steht **„Nicht angenommen“**. „Durchgestellt“ bleibt für Anrufe, bei denen die KI verbunden hat.
+### Hinzugefügt
+- **Eigene Wiedergabeleiste** für Aufnahmen (`<lm-player>`): Wellenform mit Klick-zum-Springen, ±10 s, Tempo, Lautstärke, Herunterladen, Tastatursteuerung.
+- Dialog „Per E-Mail senden“: Option **„Alle besprochenen Punkte“** (ausführliche Zusammenfassung, wird bei Bedarf erstellt).
+### Hinzugefügt
+- **Ausführliche Zusammenfassung** (optional): Liste **aller besprochenen Punkte**, Zusagen und offene Punkte aus dem ganzen Transkript. Automatisch je Agent („Zusatzinfos ausführlich“), einzeln per Knopf „Ausführlich zusammenfassen“ in der Anrufansicht und in der Mail für Empfänger mit „Alle besprochenen Punkte“.
+### Umbau der Ablauflogik (Stand davor: Tag `vor-refactoring`)
+- **Testmappe** `tests/` (pytest, `tests/run.sh` in podman ohne Netz): Fake-Gemini, Fake-AudioSocket, AMI-Stub, temporäre DB; Szenarien schreiben das Verhalten fest (KI-Anruf, Rangfolge Wählregel > Status > Zeitplan > Vertretung > KI, mehrere Ziele, Weiterleiten mit/ohne Rückfrage, Kostenbremse, Aufzeichnung, Mail-Größenlimit, Antwort-Strings). `tests/run.sh --asterisk`: Test gegen eine echte lokale Asterisk-Instanz im Pod ohne Netz (Dialplan laden, KI-Anruf, Klingeln → KI, Rückfrage Zusage/Ablehnung).
+- **Protokoll Bridge ↔ Dialplan** zentral in `bridge/app/protocol.py` (typisierte Builder/Parser, Tabelle in ARCHITEKTUR.md). Die Antworten bleiben Klartext; `JSON_DECODE` wäre im Image vorhanden (lokal geprüft), die Umstellung ist bewusst nicht gemacht.
+- **Einstellungen:** Die Datenbank ist die einzige Quelle für `data/asterisk/fritz.conf` (`astconf.py`); beim Start gewinnt sie gegen eine abweichende Datei (alte Datei als `fritz.conf.vorher`). `render.py` legt eine fehlende `fritz.conf` aus der Datenbank an und überschreibt nie eine vorhandene. `sip_adopt`/`sip_upgrade` bleiben als einmalige Migrationen.
+- **Zustand je Anruf** in einem Objekt (`callstate.py`, Phasen klingelt/ki/rueckfrage/verbunden/beendet) statt elf globaler Wörterbücher; Ablaufzeiten an einer Stelle, beim Auflegen wird der Zustand des Anrufs geleert.
+- **Ablauf in der Anrufansicht:** neue Tabelle `call_events`, Abschnitt „Ablauf“ mit Zeitleiste und Dauer je Schritt (alte Anrufe unverändert).
+
+### Behoben
+- **Review-Paket 4** (Tests: `tests/test_review_fixes4.py`):
+  - Live-Stand/Banner: laufende und klingelnde Anrufe auf eine **neu zugewiesene Rufnummer** sind für Benutzer sichtbar; Durchstellen, Umleiten und Auflegen geben keinen 404 mehr.
+  - **„Nicht stören“/Zeitplan**: Ist die angerufene Nummer Mitarbeitern zugewiesen, aber keiner erreichbar, nimmt die KI sofort an, statt über die Klingel-Rufnummer (99613) alle Telefone klingeln zu lassen. Nummern ohne Zuweisung und Durchstell-Agenten unverändert.
+  - Vorschau in „Meine Einstellungen“ zeigt von der Vertretung nur den Namen, nicht deren Nummern.
+  - Geteilte Nummer + Zentrale: jedes Telefon klingelt nur einmal (`**610+**622` statt `**610+**610+**622`).
+  - Nach „niemand nimmt ab“ gilt „hat den Anruf nicht angenommen“ nur für Personen, bei denen es klingelte; die KI darf sie auf Wunsch nochmal verbinden.
+  - Rückfrage: „jetzt“ + „nicht“ wird nicht mehr zu „jetztnicht“ (Verneinung zählt).
+  - Zweite Nachricht an denselben Empfänger wird angehängt statt überschrieben.
+  - Rufnummernvergleich mit Vorwahl (030 12345678 ≠ 040 12345678), längste passende Fritzbox-Rufnummer gewinnt (12345 / 912345), Wählregel „bis 23:59“ gilt bis Tagesende.
+  - WLAN-Anwesenheit schaltet einen Urlaub mit „abwesend bis“ nicht mehr auf „nicht stören“; die KI wählt das Telefonbuch-Handy eines nicht erreichbaren Mitarbeiters nicht mehr (bietet Vertretung oder Nachricht an).
+- Nach dem Auflegen brach die Nachbearbeitung mit einem `NameError` ab (`notify_end`): Nach einer angenommenen **Rückfrage** liefen Auswertung und **Mail** für das Gespräch nie; ebenso fehlte die Mail bei „nur Audio“-Aufnahmen nach dem Durchstellen. Diese Mails kommen jetzt.
+- `recx` mit Wartemusik, aber ohne Klingelzeit: die Musikklasse stand im Feld der Klingelzeit (seltener Sonderfall), jetzt an der richtigen Stelle.
+
+### Hinzugefügt
+- **Hilfe-Seite** (Symbol „?“ oben rechts): Einstiegsseite mit den wichtigsten Begriffen (Agent, Anrufregel, Aufzeichnungsregel, Benutzer), Themenmenü und Volltextsuche. Die Texte stehen in `bridge/app/static/help.js`.
+### Hinzugefügt
+- G.722 (Breitband) auf der Fritzbox-Leitung erlaubt (`allow=g722,alaw,ulaw`). Neu hochgeladene Wartemusik wird zusätzlich in 16 kHz gespeichert (`.wav16`), Asterisk nimmt je nach Gespräch die passende Fassung. Bereits vorhandene Stücke haben nur 8 kHz und müssen für Breitband neu hochgeladen werden.
+
+### Behoben
+- Freizeichen vor der Musik: die Kadenz läuft wieder ohne Sendepause bis zum Dial (sonst schaltet die Fritzbox den Anrufer stumm).
+
+### Sicherheit
+- **Klingel-Rufnummer 99613 abgesichert (ohne Änderung an der Fritzbox):** Asterisk nimmt SIP-Anfragen nur noch von der IP der Fritzbox an (PJSIP `type=acl` in `data/asterisk/fritz.conf`, folgt der Fritzbox-Adresse aus den Einstellungen), und die Endpoints `fritz`/`99613` werden nur über die IP erkannt (`identify_by=ip`). Vorher konnte sich jedes Gerät im LAN als 99613 anmelden und die Fritzbox verdrängen. Eine vorhandene `fritz.conf` stellt die Bridge beim Start mit denselben Zugangsdaten um und lädt PJSIP neu. Notschalter `SIP_ACL=0` (`.env`). `RING_PASSWORD` wurde nie geprüft und wird nicht mehr erzeugt; die Doku versprach fälschlich ein Kennwort.
+- **Eigenes Gerät und Durchstellen für eingeschränkte Konten begrenzt:** In „Meine Einstellungen“ lässt sich als „Weiterleitung im Büro“ (das eigene Gerät für „Ich telefoniere“) selbst nur noch eine interne Nummer (`**NNN`) eintragen; eine externe Nummer trägt ein Administrator ein (neue Spalte `staff.number_admin`, vorhandene Nummern gelten beim Update als vom Administrator gesetzt). Durchstellen und Umleiten klingelnder Anrufe dürfen eingeschränkte Konten nur noch an interne Nummern, Nummern von Benutzern (Büro/außer Haus) und Kontakte; beliebige Nummern nur Administratoren. Die eigene „Weiterleitung außer Haus“ (Handy) bleibt frei wählbar.
+- **Rückfrage vor dem Verbinden – Zustimmung strenger geprüft:** `accept()` gilt nur noch, wenn die Antwort der Person nach der Frage ein Ja-Wort (ja, gern, okay, passt, verbinden, stell durch …) ohne vorangehende Verneinung enthält und nicht mit einer Verneinung endet; vorher genügte jede erkannte Eingabe (auch eine Mailbox-Ansage oder ein Geräusch). Das Anliegen steht im Prompt als markiertes Zitat und ist auf 120 Zeichen gekürzt. `voicemail()`/`decline()` unverändert.
+- **Kostenbremse** (neu, bei Auslieferung aus = bisheriges Verhalten): je Agent und als Standard in den Einstellungen höchstens *n* KI-Anrufe je Rufnummer und Stunde und *n* KI-Minuten je Rufnummer und Tag, global höchstens *n* KI-Minuten pro Tag; je Agent außerdem die Höchstdauer eines Gesprächs (überschreibt `MAX_CALL_SECONDS`). Bei Überschreitung nimmt die KI nicht an (wie „kein Agent“), die Anrufliste zeigt „Kostenbremse“. Benutzer, Kontakte und interne Nummern sind ausgenommen. Neue Spalten `agents.limit_calls_h`, `limit_min_day`, `max_call_s` (Migration automatisch).
+- **AMI: weniger CLI-Befehle.** Auflegen (`Hangup`), Aufzeichnung stoppen (`StopMixMonitor`) und der Status der Fritzbox-Anmeldung (`PJSIPShowRegistrationsOutbound`, neues Recht `reporting` in `manager.conf`) laufen über eigene AMI-Aktionen. Das Recht `command` bleibt vorerst nötig (`mixmonitor start`, `module reload res_pjsip.so`, `pjsip send (un)register`, `core show channel`, `moh reload`): Die passenden AMI-Aktionen verlangen das ebenso weitreichende Recht `system`. Ohne neu geladene `manager.conf` fällt die Statusabfrage auf den CLI-Befehl zurück. Fehlermeldung „No channel matching …“ beim Start einer Aufnahme im laufenden Gespräch wird jetzt erkannt.
+- **Eigene Plugins nur nach Freigabe:** Plugins aus `data/plugins/` werden erst importiert, wenn ein Administrator sie unter *Plugins* eingeschaltet hat (Freigabe, wirkt nach einem Neustart der Bridge); vorher lief `register()` jedes abgelegten Plugins beim Start. Beim Update gelten bereits vorhandene Plugins als freigegeben (Ein/Aus bleibt). Eingebaute Plugins (Kampagnen) unverändert.
+- **Protokolle sparsamer:** Rufnummern und Mailadressen erscheinen im Log der Bridge gekürzt (`01…78`, `a…@firma.de`; Mail-Betreff, Empfänger, Fehlermeldungen, Zielnummern), das Zugriffslog zeigt bei `/api/calls` keine Suchbegriffe mehr. `docker-compose.yml` begrenzt die Container-Logs auf 3 × 10 MB je Dienst (`json-file`).
+- `ops/watchdog.py` prüft beim Mailversand das TLS-Zertifikat des Mailservers (`ssl.create_default_context()`, wie die Bridge).
+- **Sicherheits-Header** auf allen Antworten der Bridge: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` und eine schmale CSP (`frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'`). Eine CSP mit `script-src`/`style-src` ist bewusst nicht gesetzt: die Ein-Datei-Oberfläche braucht Inline-Skript, Inline-Styles und `onclick` (nur mit `'unsafe-inline'` möglich, das den Schutz aufhebt).
+- **HTTP-Basic-Anmeldung standardmäßig aus** (`ALLOW_BASIC` Standard jetzt `0`): Die Oberfläche nutzt die Formular-Anmeldung, Healthcheck und Wächter brauchen keine Anmeldung. Wer Skripte mit `admin` + `UI_PASSWORD` nutzt, setzt `ALLOW_BASIC=1` in der `.env`.
+- Ungültiger JSON-Inhalt (alle Endpunkte) und falsche Typen bei der Anmeldung ergeben 400 statt eines internen Fehlers (500).
+- Stimmproben/Ansagen-Cache (`data/voices/`) wird atomar geschrieben (keine halben Dateien bei Abbruch oder parallelen Anfragen).
+- **Aufräumen (etwa stündlich):** abgelaufene Anmelde-Sitzungen werden gelöscht; Rohaufnahmen in `data/rec-in/`, die älter als die Aufbewahrungsfrist sind (nur wenn eine Frist gesetzt ist; laufende und archivierte Anrufe ausgenommen); der Stimmproben-Cache nur, wenn er 200 MB übersteigt (lange nicht benutzte Dateien zuerst, sie werden bei Bedarf neu erzeugt).
+- Doku: `docs/ARCHITEKTUR.md` auf aktuellem Stand (Konfiguration in der Datenbank statt `.env`, Wartemusik-Layout `lib/`, `play/`, `tones/`, `c/<klasse>/`, `moh.conf`, Modultabelle mit `config.py`, `fritzconf.py`, `hold.py`, `costguard.py` u. a.); `docs/wiki/Sicherheitsbewertung.md` mit Kostenbremse, Absicherung von 99613 und strengerer Rückfrage-Sperre.
+- Doku: Container-Härtung (Bridge als unprivilegierter Benutzer, Asterisk-Image pinnen) als offene Punkte mit Anleitung (Wiki *Betrieb und Überwachung*); nicht umgesetzt, weil die Rechte in `data/` (teils root) und rootless-podman das ohne Umzug brechen würden.
+
+## [0.5.0] – 2026-10-22
+### Geändert
+- **„Mitarbeiter“ heißen jetzt „Benutzer“** (Oberfläche und Dokumentation). Die Kontorolle „Benutzer“ heißt zur Unterscheidung **„Eingeschränkt“**; „Konten ohne Benutzer“ sind Anmeldungen ohne Benutzer-Eintrag. Die KI sagt gegenüber Anrufern weiter „Mitarbeiter“.
+- Eingeschränkte Konten dürfen unter „Anruf starten“ Gespräche mit Mitschrift führen, nur vom eigenen Anschluss (Benutzer-Eintrag), mit immer eingeschalteter Hinweis-Ansage; selbst gestartete Gespräche sehen sie in ihrer Anrufliste. Das Menü „Regeln“ war für sie fälschlich sichtbar und ist jetzt verborgen.
+- Ausgehende KI-Anrufe (Assistent ruft an, Kampagnen) sind von den Aufzeichnungsregeln getrennt: Transkript immer, kein Audio.
+- **„Ich telefoniere – mit Mitschrift“:** Audio, Transkript und Hinweis-Ansage einzeln wählbar, Mails über die Empfänger-Option „Auch bei Gesprächen mit Mitschrift“, Telefon wählbar (Mitarbeiter und die internen Anschlüsse der Fritzbox: DECT, analog, IP-Telefone, sonst jede interne Nummer); Tabs statt Schaltflächen.
+- **Ausgehende Gespräche (Vorwahl, z. B. 000) folgen jetzt Aufzeichnungsregeln:** je Regel Audio, Transkript, Hinweis-Ansage, Sprachbefehl und Mail an Empfänger oder freie Adressen, mit Zielnummer/Kontakt und Zeitfenster als Bedingung. Die bisherige feste Aufzeichnung wird beim Start als Regel „Ausgehende Gespräche (Vorwahl)“ mit gleichem Verhalten übernommen. Passt keine Regel, wird normal ohne Aufzeichnung gewählt.
+- **Agenten-Modell umgebaut:** Ein Agent ist nur noch die KI-Persönlichkeit. *Wer* annimmt, regeln die **Anrufregeln**, *was* aufgezeichnet wird, die **Aufzeichnungsregeln** (Seite „Regeln“ mit zwei Tabs). Bestehende Daten werden beim Start automatisch in gleichwertige Regeln übernommen (Sicherung vorher anlegen); Beim Speichern eines Agenten werden die alten Spalten nicht mehr überschrieben.
+- Bei Gesprächen, die ein Mensch annimmt (Durchstellen, Klingeln aller Telefone), gelten Aufzeichnung und Sprachbefehl ebenfalls aus den Aufzeichnungsregeln (auch ohne führenden Assistenten).
+- Hinweise in der Oberfläche einheitlich als „Hinweis“-Box; Bearbeiten eines Agenten bzw. einer Regel blendet die Liste aus.
+### Hinzugefügt
+- Wartemusik: einstellbare **Lautstärke** (Standard 60 %, in der Karte „Wartemusik“); Freizeichen-Töne beim Klingeln stehen nicht mehr mit 4 Sekunden Pause vor der Musik (die Musik beginnt direkt nach dem letzten Ton).
+- **Wartemusik wählbar:** Für die Musik beim Klingeln und für das Verbinden/die Rückfrage lässt sich je ein bestimmtes Stück festlegen oder „alle eingeschalteten“ (zufällig). Bei der Zufallswahl kommt nie dasselbe Stück wie beim vorigen Anruf, und innerhalb eines Anrufs folgt auf ein Stück das nächste eingeschaltete. Die Wartemusik spielt jetzt auch beim Verbinden ohne Rückfrage (`Durchstellen`), wenn „Wartemusik beim Verbinden und bei der Rückfrage“ eingeschaltet ist. Technisch erzeugt die Bridge dafür je Stück Asterisk-Klassen (`data/asterisk/moh.conf`, per `#include` gelesen), die Dateien liegen als Bibliothek in `data/sounds/moh/lib/`.
+- Wartemusik ist für die Rückfrage einzeln abschaltbar (dann hört der Anrufer das Freizeichen), unabhängig von der Musik beim Klingeln.
+- **Wartemusik statt Freizeichen:** Einstellung „Statt des Freizeichens Wartemusik spielen, während die Telefone klingeln“ (aus bei Auslieferung). Der Anrufer hört dann eines der eingeschalteten Stücke, solange Asterisk die Telefone über die Klingel-Rufnummer klingeln lässt. Einstellbar, nach wie vielen Freizeichen-Tönen die Musik beginnt (0 = sofort, 2 = zweimal Freizeichen, ab dem dritten Klingeln Musik).
+- **Wartemusik als Liste:** Unter *Einstellungen → Rückfrage vor dem Verbinden* lassen sich MP3-, WAV-, FLAC- und OGG-Dateien hochladen (werden für das Telefon auf 8 kHz mono umgerechnet und normalisiert), ein- und ausschalten, anhören und löschen. Asterisk spielt von den eingeschalteten Stücken eines in zufälliger Reihenfolge; die eingebaute Melodie lässt sich nur ausschalten, mindestens ein Stück bleibt an.
+- **Rückfrage vor dem Verbinden** (Agent-Option, standardmäßig aus): Die KI ruft den Benutzer an und fragt, ob er den Anrufer sprechen möchte. Der Anrufer hört währenddessen eine eingebaute, sanfte Wartemusik (Spieluhr-Wiegenlied). Bei Ablehnung, Mailbox/Anrufbeantworter (von der KI erkannt) oder keiner Antwort nach der Klingelzeit sagt die KI dem Anrufer, dass gerade niemand erreichbar ist. Die Rückfrage-KI darf erst nach der Antwort der Person zustimmen, abgelehnte Ziele werden im selben Anruf nicht noch einmal angerufen. Einstellungen für Klingelzeit, Höchstdauer und Ansage; neue Datei `musiconhold.conf` für Asterisk (nach `./asterisk/render.sh` den Container neu erstellen).
+- Aufzeichnungsregeln: Schalter „Ansage ‚Das Gespräch wird aufgezeichnet‘ abspielen“ auch für eingehende Gespräche (KI-Audio und Gespräche mit Mitschrift); ohne Ansage startet die KI-Aufnahme sofort. Bestehende Regeln behalten die Ansage.
+- **Benachrichtigungen für Gespräche mit Mitschrift:** Empfänger können „Auch bei Gesprächen mit Mitschrift benachrichtigen“ einschalten (ausgehend mit Vorwahl und „Ich telefoniere“), unabhängig von den Rufnummern.
+- Agent-Option „Anrufer mit Mitarbeitern verbinden“: immer, nur während der Geschäftszeiten oder nie (dann nur Nachricht aufnehmen, für einen reinen Anrufbeantworter).
+- Regeln zeigen zu Rufnummern die Namen aus Kontakten und Mitarbeitern.
+- Der gewählte Tab (Regeln, Anruf starten) bleibt nach F5 erhalten.
+- Die Fritzbox-Anschlüsse werden alle 5 Minuten im Hintergrund gelesen; die Weboberfläche wartet nie auf die Fritzbox.
+- Symbole in Navigation, Menü (auch für Plugin-Seiten, z. B. Kampagnen), Seitenüberschriften und Regel-Tabs.
+- **Aufnahme im laufenden Gespräch wieder beenden** (Knopf „■ Aufnahme beenden“; das bisher Aufgezeichnete wird verworfen) und danach erneut starten; die Hinweis-Ansage beginnt mit 0,5 s Stille.
+- **Rufnummern-Vergleich vereinheitlicht:** In den Regeln passen `0141…`, `+49141…` und `0049141…` zusammen; interne Nummern (`**610`) und kurze Endungen funktionieren wie bisher.
+- **Klingeln über Asterisk:** Rufnummer „Anderer Anbieter“ (`99613`) lässt alle Fritzbox-Telefone klingeln und zeigt die Nummer des Anrufers; die KI übernimmt nach der Klingelzeit der Anrufregel.
+- **Ausgehend aufgezeichnet:** Die Vorwahl `000` (Wahlregel der Fritzbox → 99613) führt ein Gespräch über Asterisk; aufgezeichnet wird nach den Aufzeichnungsregeln „Ausgehende Gespräche“.
+- **Aufzeichnung steuern:** Sprachbefehl „Lieschen, keine Aufzeichnung“ (je Regel abschaltbar), Aufnahme im laufenden Anruf per Klick zuschalten (mit optionaler Ansage), Aufnahme als MP3, Archivieren, Mail mit Aufnahme.
+- **Stimmung aus dem Text** (zusätzlich zum Tonfall), Stärke je Stimmung; Hinweis zum EU AI Act bei der Stimmungserkennung aus der Stimme.
+- **Ausfallsicherheit:** Docker-Healthchecks und Wächter-Skript `ops/watchdog.py` (Cron) mit Mail bei Störung.
+- **Rufnummern:** Fritzbox-Nummern (TR-064) lassen sich in der Oberfläche verwalten; Autocomplete für Anrufer-/Nummernfelder (Kontakte, Mitarbeiter, Fritzbox-Nummern).
+- Wortlogo und überarbeitete Navigation; Fritzbox-Status in der Kopfzeile; Bestätigungsdialog bei laufenden Anrufen.
+### Behoben
+- Wartemusik beim Klingeln: Die Klassen `default` und `ringmusic` existieren jetzt schon beim Start von Asterisk (eine Stille-Datei als Platzhalter). Asterisk verwirft sonst Klassen ohne Dateien und legt sie bei einem späteren Neuladen nicht mehr an; dann spielte beim Klingeln `default` statt `ringmusic`.
+- Einstellungen: Der Abschnitt „Aufzeichnung von Gesprächen“ speicherte beim Ändern sofort, die übrigen Abschnitte mit einem Knopf. Jetzt haben alle einen Speichern-Knopf; die Hinweise stehen einheitlich als Hinweisbox in voller Breite, und jeder zusammengehörige Bereich der Einstellungen steht in einer eigenen, abgegrenzten Karte (Grundkonfiguration, Geschäftszeiten, Aufzeichnung, Klingeln, Gemini, zwei Fritzbox-Karten, Aufbewahrung, Rückfrage, Wartemusik, Kalender).
+- **Rückfrage:** Die Rückfrage-Sitzung gehört jetzt zum Anruf des Anrufers (kein eigener Eintrag mehr, Transkript und Kosten in einem Anruf). Das verbundene Gespräch nach einer Zusage wird nach den Aufzeichnungsregeln aufgezeichnet (Audio/Transkript/Hinweis), sonst nicht.
+- **Rückfrage vor dem Verbinden:** Mail und Auswertung enthielten nur den Teil des Gesprächs bis zur Rückfrage. Sie laufen jetzt erst, wenn das ganze Gespräch zu Ende ist (nach der Rückkehr zur KI bzw. nach dem Auflegen), und enthalten das vollständige Transkript.
+- **Lange Aufnahmen:** Die abschließende Transkription teilt Spuren in Stücke von etwa 5 Minuten (an Sprechpausen) und verwirft Zeilen mit Zeitmarken hinter dem Ende sowie hundertfache Wiederholungen („Mhm.“). Vorher konnte das Modell bei einer 31-Minuten-Aufnahme Tausende erfundene Zeilen mit Zeitmarken bis zu 16 Stunden erzeugen, die das Transkript durcheinanderbrachten.
+- **Anrufdauer:** Das Ende eines Anrufs ist der Zeitpunkt des Auflegens und nicht mehr das Ende der Transkription (ein 31-Minuten-Gespräch wurde mit 40 Minuten angezeigt).
+- Eingeschränkte Konten sehen ihre selbst gestarteten Gespräche im Live-Banner; sie können keine Mails an frei gewählte Adressen auslösen.
+- Aufnahme im laufenden Gespräch (neu) starten: Der Sprachbefehl „keine Aufzeichnung“ folgt jetzt den passenden Aufzeichnungsregeln statt fest eingeschaltet zu sein.
+- „Aufnahme beenden“ und „Auflegen“ funktionieren auch bei Gesprächen, die über „Ich telefoniere“ oder `000` laufen (der Kanal wird jetzt an die Bridge gemeldet).
+- Aufzeichnungs-Ansage: Die Aufzeichnungsregel entscheidet, wo sie passt; der globale Schalter gilt nur, wenn keine Regel passt, und für Aufnahmen per Klick. „Verbinden mit Mitarbeitern: nie“ gilt auch für `connect_contact`. Mails zu Gesprächen mit Mitschrift gehen nur nach erfolgreicher Transkription raus. Die 0,5 s Stille vor der Ansage wird bei bestehenden Installationen einmalig neu erzeugt.
+- „Auflegen“ in der Oberfläche funktionierte bei Gesprächen zwischen Menschen nicht (Fehler 404); jetzt legt es den Kanal auf, auch im Live-Banner.
+- Beim Ausfall der Bridge wählt der Dialplan normal weiter; im Live-Banner blieb „klingelt“ stehen.
+- **Regeln:** Neue Seite „Regeln“ mit **Anrufregeln** (erste passende Regel bestimmt Agent und Klingelzeit) und **Aufzeichnungsregeln** (alle passenden gelten, Audio, Transkript, KI-Audio, Sprachbefehl). Agenten sind nur noch die KI-Persönlichkeit. Bestehende Einstellungen (Priorität, Bedingungen, Annahmezeit, Aufzeichnung) werden beim ersten Start automatisch in gleichwertige Regeln übernommen; die alten Spalten bleiben in der Datenbank.
+- Einstellungen (Administrator): Google-Gemini-Schlüssel, Fritzbox (Adresse, TR-064, Anmeldung von Asterisk) und Aufbewahrung der Anrufe in der Weboberfläche statt in der `.env`; Änderungen an der Anmeldung laden Asterisk neu, prüfen die Anmeldung und stellen bei Fehlern die alten Werte wieder her. Kopfzeile zeigt „Fritzbox ok“.
+- Anrufe: Notizfeld je Anruf (durchsuchbar, Badge in der Liste) und Freigabe einzelner Anrufe an andere Benutzer (⇄ Freigeben; sie sehen Transkript, Notiz, Aufnahme).
+- Aufzeichnung: Anrufe lassen sich als **Archiv** markieren (★ im Anruf, Filter „nur Archiv“); archivierte Anrufe samt Aufnahme werden von der automatischen Löschung (`RETENTION_DAYS`) ausgenommen und lassen sich erst nach Aufheben der Archivierung löschen.
+- Aufzeichnung: Einstellung „Audio dauerhaft speichern“ (Aufnahme bleibt abspielbar) und „Hinweis-Ansage abspielen“; Gespräche mit Aufzeichnung führt Asterisk selbst (Anzeige der Anrufernummer über `99NNN`-Rufnummern, KI-Rückfall nach 30 s).
+- Kampagnen: Anrufer können ihren Termin telefonisch absagen (Name und Uhrzeit nennen; Werkzeug `cancel_appointment`). Der Kalendereintrag wird gelöscht, der Termin ist wieder frei, im Anruf steht die Notiz „Termin abgesagt“.
+- Kampagnen: optionale E-Mail zu jedem Anruf der Kampagne (Feld „E-Mail zu jedem Anruf“, mit Zusammenfassung, Ergebnis und Transkript; auch bei nicht erreichten Zielen).
+- Kampagnen: „Termin freigeben“ bei gebuchten Zielen; im Google Kalender gelöschte Buchungen werden erkannt; Autocomplete für Ziele aus dem Telefonbuch.
+- **Review-Fixes (Sicherheit/Robustheit):** `/internal/*` verlangt zusätzlich einen Schlüssel (hinter Reverse-Proxy sonst offen); Login-Drossel je Benutzername+IP statt nur je IP, Wiederverbindungsversuche zählen nicht mehr als Fehlversuch;
+  Fernabfrage liefert „neue“ Anrufe ältester zuerst und verliert keine mehr; Aktionsnamen dürfen keine eingebauten Werkzeuge verdoppeln; Rückfall auf die KI nimmt nur Assistenten; Fehler in Werkzeugen beenden die Gespräche nicht mehr;
+  Mail bei Mitschrift erst nach dem Transkript; hängende Kampagnenziele werden neu eingeplant; angerufene Nummern werden auf die zugewiesene Nummer vereinheitlicht; Codewörter nicht im Wechsel-Grund; kleinere Korrekturen.
+- **Google Kalender der Mitarbeiter** (Dienstkonto in den Einstellungen, Kalender-ID beim Mitarbeiter): berechtigte Anrufer erfahren, wo der Mitarbeiter laut Kalender ist
+  (Titel/Ort oder nur „in einem Termin“); per **Fernabfrage** Termine abfragen, freie Zeiten erfragen und Termine eintragen. Der Google-Zugang gehört jetzt zum Kern; das Kampagnen-Plugin nutzt ihn.
+- **Fix:** Die Fernabfrage-Werkzeuge (Anrufe auflisten, Zusammenfassung, Transkript, Rückruf, Abspielen) fehlten seit dem Auslagern der Kampagnen und sind wiederhergestellt.
+- **Kampagnen:** Google Kalender als Terminpool (Platzhalter-Termine mit Präfix, Zugang per Dienstkonto), gebuchte Termine werden im Kalender eingetragen und bei Freigabe gelöscht;
+  vor jedem Anruf wird geprüft, ob noch ein Termin frei ist (sonst wartet die Kampagne, ohne Versuch zu verbrauchen; Kalender nicht erreichbar ebenso);
+  die Kampagne zeigt klar „keine freien Termine mehr“, zu wenige Termine und wie vielen Personen noch kein Terminangebot gemacht wurde;
+  einstellbare **Pause zwischen Terminen** je Kampagne (auch für manuelle Pools); Titel des Kalendereintrags einstellbar.
+- Dokumentation (README, `docs/`) und dieses Changelog.
+- Mailkonto vollständig in der Weboberfläche einstellbar, auch das Passwort (wird nie wieder angezeigt, kann entfernt werden; Rückfall auf `SMTP_PASSWORD` in der `.env`).
+
+## [0.4.0] – 2026-10-18
+### Hinzugefügt
+- **Plugin-Schnittstelle** (Python, im Prozess der App): Ereignisse, KI-Werkzeuge, Prompt-Zusätze, Web-Schnittstellen, Seiten, periodische Aufgaben,
+  eigene Tabellen; Seite **Plugins** zum Ein-/Ausschalten; Doku `docs/PLUGINS.md` und Beispiel `examples/plugins/hello`.
+- **E-Mail-Benachrichtigungen** (SMTP, z. B. Outlook/Microsoft 365) je Rufnummer und Empfänger (jeder/wichtige Anrufe, Kurzfassung oder Transkript)
+  und **täglicher Anrufbericht**; Seite *Benachrichtigungen* mit Testmail und „Bericht jetzt“.
+- **Fernabfrage:** Verbinden mit Kontakten/Mitarbeitern (auch mit Mitschrift) vom internen Anschluss oder nach Freischaltung; Rückruf zum Anrufer;
+  Handy aus dem Telefonbuch, wenn der Mitarbeiter keine Nummer hinterlegt hat oder „mobil“ verlangt wird.
+- Anruf starten (Mitschrift): eigener Anschluss vorausgewählt, Auswahl der Mitarbeiter-Anschlüsse.
+- Kampagnen: Ziele aus dem Telefonbuch wählen (Suche, Mehrfachauswahl).
+### Geändert
+- **Kampagnen** sind jetzt ein mitgeliefertes Plugin (API unter `/api/plugins/campaigns/…`); Daten und Funktionen unverändert.
+- Namenssuche: exakte Treffer vor ähnlich geschriebenen (Meier/Maier), Rückfrage bei mehreren Treffern.
+- Fernabfrage verlangt Rufnummer **und** Codewörter; erkannte Mitarbeiter werden mit Vornamen und „du“ angesprochen, ohne KI-Hinweisansage;
+  Codewörter werden im Transkript geschwärzt; eigene Anrufe/Fernabfragen erscheinen nicht in der Anrufliste der Fernabfrage.
+### Behoben
+- Nach der Freischaltung der Fernabfrage wurde doppelt begrüßt.
+
+## [0.3.0] – 2026-10-17 (Abend)
+### Hinzugefügt
+- **Live-Banner** für klingelnde und laufende Anrufe (SSE) mit Routing per Klick (KI annehmen, durchstellen, Agent wechseln, auflegen), auch für Benutzer
+  auf ihren Rufnummern; Lenken klingelnder Anrufe per AMI-Redirect.
+- **Stimmungseinschätzung** (`note_mood`) und **Zusatzinfos** zu Gesprächen (Zusammenfassung, Anliegen, Dringlichkeit, Betrugsverdacht, Sprache).
+- **Agentenwechsel** per Codewort (erst bei *n* verschiedenen), Stimmung (UND/ODER), Anrufer-/Nummernlisten, „nur per Codewort starten“;
+  Wechsel in den Modus *Durchstellen* mitten im Gespräch.
+- Ansage beim Weiterverbinden an Menschen und beim Agentenwechsel.
+- **Kampagnen** (Ziele, Anrufzeiten, Wiederholungen, Anrufbeantworter-Erkennung, Terminpool mit Buchung) und **Fernabfrage per Telefon** (Anrufe auflisten,
+  Zusammenfassungen vorlesen, Gespräche abspielen).
+- „KI übernimmt, wenn niemand abnimmt“ (Rückfall nach 25 s, je Mitarbeiter abschaltbar); bei Fehlschlag des Durchstellens nimmt die KI den Anrufer zurück.
+- Agenten: Schnellschalter (aktiv/aus) und Annahmezeit in der Übersicht; Kosten für Ansagen/Stimmproben werden mitgezählt.
+### Geändert
+- Wählregel „sofort zum Anrufbeantworter“ umgeht die Annahme-Verzögerung des Agenten.
+- Rufnummern-Seite lädt schnell (Fritzbox-Liste im Hintergrund aktuell gehalten); Neustart trotz offener Live-Verbindungen schneller.
+- Anrede: die KI schließt nie aus der Stimme auf das Geschlecht.
+### Behoben
+- Durchstellen nach einem KI-Gespräch brach ab (AudioSocket wird jetzt mit Hangup-Frame geschlossen).
+- Modell-Badge in der Kopfzeile entfernt (irreführend, jeder Agent hat ein eigenes Modell).
+
+## [0.2.0] – 2026-10-17 (Nachmittag)
+### Hinzugefügt
+- **Mitarbeiter** mit Status, Weiterleitung, Handy außer Haus, Vertretung, „abwesend bis“, **Zeitplan**, **Wählregeln** (je Anrufer/Zeit/Nummer, Ein/Aus, Reihenfolge).
+- **Rufnummern** der Fritzbox (TR-064) Mitarbeitern zuweisen (exklusiv oder geteilt; geteilte klingeln gleichzeitig); Sichtbarkeit der Anrufe nach Rufnummer.
+- **Benutzerkonten** mit Formular-Anmeldung, Rollen, „Meine Einstellungen“.
+- **Gespräche mit Mitschrift** („Ich telefoniere“, getrennte Spuren, Nachtranskription, fast live), Durchstellen mit Mitschrift.
+- **Anrufbeantworter-Verhalten:** verzögerte Annahme, nicht angenommene Anrufe, Geschäftszeiten.
+- Kosten in Euro (EZB-Kurs), Budget, Monatsübersicht, Warnung bei leerem Guthaben.
+### Behoben
+- Phantom-Anrufe beim Auflegen, Rennen bei Aufnahmen, Aliasing im Audio (Tiefpass-Resampler).
+
+## [0.1.0] – 2026-10-17 (Erststand)
+### Hinzugefügt
+- Asterisk-Container (PJSIP an der Fritzbox) und **Bridge** mit Google Gemini Live über AudioSocket; **Weboberfläche** mit Anrufliste, Transkript und Agenten.
+- **Agenten** nach angerufener Nummer, Anrufer und Codewörtern; Stimme und Modell je Agent; feste Hinweis-Ansage; Fragenliste; Aktionen (weiterleiten, wechseln,
+  notieren, Webhook, auflegen); Schweige-Watchdog; Aufnahme.
+- **Kontakte** (Fritzbox-Telefonbuch per TR-064), **ausgehende Anrufe** mit Auftrag und Vorlagen, Tokenzählung und Kostenschätzung.
+- Serverseitiges Paging und Filter in der Anrufliste; Schutzmaßnahmen (CSRF/Origin, Wählsperren, Höchstdauer).

@@ -1,0 +1,9 @@
+{
+  "name": "hello",
+  "title": "Hallo-Beispiel",
+  "version": "0.1.0",
+  "api": 1,
+  "description": "Beispiel-Plugin: zählt beendete Anrufe, bietet der KI das Werkzeug tell_time und hat eine eigene Seite.",
+  "author": "Beispiel",
+  "default_enabled": false
+}

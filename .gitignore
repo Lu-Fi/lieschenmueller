@@ -1,0 +1,12 @@
+.env
+data/
+asterisk/conf/
+__pycache__/
+backup/
+.claude/
+docs/img/*.raw.png
+.env.tmp
+*.db
+*.tar.gz
+CLAUDE.md
+ops/truenas-b/
