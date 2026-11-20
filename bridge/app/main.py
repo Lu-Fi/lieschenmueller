@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 
-from . import hold, labels as lbls, agents, ami, analyze, astconf, config, costguard, db, flow, gclient, logmask, fritzconf, gcal, linediag, mp3, outrec, presence, notify, numinfo, plugins, protocol, remote, dialrules as drules, fritz, fritzweb, models, schedule, rate, rectrans, users, voices
+from . import hold, labels as lbls, agents, ami, analyze, anomaly, assistant, astconf, config, costguard, db, flow, gclient, logmask, fritzconf, gcal, linediag, mp3, outrec, presence, notify, numinfo, plugins, protocol, remote, dialrules as drules, fritz, fritzweb, models, schedule, rate, rectrans, users, voices
 from . import audio as aiaudio
 from . import call as call_mod
 from .call import Call
@@ -285,17 +285,21 @@ def _answer_now(first):
     return ""
 
 
-def reach_preview(st, caller, called="", mask=False):
+def reach_preview(st, caller, called="", mask=False, now=None):
     """Vorschau "Ein Anruf von ... ginge jetzt an ..., weil ..." - dieselbe Entscheidung wie /internal/call (db.resolve + Anrufregel).
-    mask: Nummern anderer Mitarbeiter (Vertretung) ausblenden - fuer Benutzer, die nur ihren eigenen Eintrag sehen."""
+    mask: Nummern anderer Mitarbeiter (Vertretung) ausblenden - fuer Benutzer, die nur ihren eigenen Eintrag sehen.
+    now: anderer Zeitpunkt (naive Ortszeit, Assistent "wer ist um 18 Uhr erreichbar?"); Status und Vertretung wie gespeichert."""
     caller = re.sub(r"[^0-9*+]", "", caller or "")[:30]
     called = db._digits(called)[:30] or next((m for m in (st.get("msn") or "").split(",") if m), "")
     c = db.find_contact(caller) if caller else None
     who = next((s for s in db.list_staff() if caller and any(db.same_number(caller, n) for n in re.split(r"[;,]\s*", s.get("number") or "") if n)), None)
     label = (f"{c['name']} ({caller})" if c else f"{who['name']} ({caller})" if who else caller) if caller else "unterdrückter Nummer"
-    r = db.resolve(st, caller, called, staff=db.list_staff(),
-                   answer_now=_answer_now(agents.pick_agent(caller, [called], db.business_open())) if called else "")
+    open_now = db.business_state(now)["open"] if now else db.business_open()
+    r = db.resolve(st, caller, called, now=now, staff=db.list_staff(),
+                   answer_now=_answer_now(agents.pick_agent(caller, [called], open_now)) if called else "")
     text = db.route_text(r, st, label)
+    if now:
+        text = text.replace(" ginge jetzt ", f" ginge am {now:%d.%m. um %H:%M} ")
     if r["number"] and st.get("ai_fallback", 1):
         text += " Nimmt niemand ab, übernimmt die KI."
     number, steps = r["number"], list(r["steps"])
@@ -794,7 +798,17 @@ def call_detail(cid: int, user: dict = Depends(user_auth)):
     return {"call": c, "live": live, "share_users": share_users, "party": notify.party_label(call), "local_name": notify.local_label(call),
             "agents": [{"id": a["id"], "name": a["name"]} for a in db.list_agents(enabled_only=True) if a["mode"] == "assist"] if live else [],
             "segments": db.q("SELECT * FROM segments WHERE call_id=? ORDER BY id", (cid,)),
-            "events": flow.list_for(cid, call.get("ended") or (None if call.get("status") in ("aktiv", "waehlt") else call.get("started")))}
+            "events": _events_for(cid, call, admin)}
+
+
+def _events_for(cid, call, admin):
+    """Ablauf des Anrufs; Admins sehen darin auch die Auffaelligkeiten (anomaly.py) als eigenen Hinweis, Benutzer nicht."""
+    ev = flow.list_for(cid, call.get("ended") or (None if call.get("status") in ("aktiv", "waehlt") else call.get("started")))
+    if admin:
+        extra = anomaly.for_call(cid)
+        if extra:
+            ev = sorted(ev + extra, key=lambda e: e["ts"])
+    return ev
 
 
 @app.put("/api/calls/{cid}/memo")
@@ -920,6 +934,7 @@ def clean_recipient(d):
             "detail": "full" if d.get("inc_transcript", d.get("detail") == "full") else "short",
             "inc_details": 0 if d.get("inc_details") in (False, 0) else 1, "inc_transcript": 1 if d.get("inc_transcript", d.get("detail") == "full") else 0,
             "inc_audio": 1 if d.get("inc_audio") else 0, "inc_points": 1 if d.get("inc_points") else 0, "daily": 1 if d.get("daily") else 0, "on_rec": 1 if d.get("on_rec") else 0,
+            "on_anomaly": 1 if d.get("on_anomaly") else 0,
             "enabled": 0 if d.get("enabled") is False or d.get("enabled") == 0 else 1}
 
 
@@ -1223,10 +1238,14 @@ def my_staff(user: dict = Depends(user_auth)):
 @app.put("/api/me/staff")
 async def put_my_staff(request: Request, user: dict = Depends(user_auth)):
     """Eigener Status und eigene Weiterleitung (nur diese Felder)."""
+    return await save_my_staff(user, await request.json())
+
+
+async def save_my_staff(user, d):
+    """Speicherlogik von PUT /api/me/staff (auch fuer den Assistenten: gleiche Pruefungen, nur die eigenen Felder)."""
     row = _my_staff(user)
     if not row:
         raise HTTPException(400, "Ihr Konto ist mit keinem Mitarbeiter verknüpft")
-    d = await request.json()
     merged = dict(row)
     for k in ("status", "note", "until", "number", "away_number", "dnd_allow", "presence_on", "presence_mac",
               "rec_out", "rec_out_numbers", "rec_out_notice"):
@@ -1564,21 +1583,26 @@ def rules_get():
 
 @app.post("/api/rules/{kind}", dependencies=[Depends(auth)])
 async def rule_create(kind: str, request: Request):
-    if kind not in ("call", "rec"):
-        raise HTTPException(404)
-    r = _clean_rule(await request.json(), kind == "rec")
-    return {"id": db.x(f"INSERT INTO {kind}_rules({','.join(r)}) VALUES({','.join('?' * len(r))})", list(r.values()))}
+    return {"id": save_rule(kind, None, await request.json())}
 
 
 @app.put("/api/rules/{kind}/{rid}", dependencies=[Depends(auth)])
 async def rule_update(kind: str, rid: int, request: Request):
+    save_rule(kind, rid, await request.json())
+    return {"ok": True}
+
+
+def save_rule(kind, rid, d):
+    """Anruf-/Aufzeichnungsregel anlegen (rid None) oder aendern - Speicherlogik der Regel-Endpunkte (auch fuer den Assistenten). Rueckgabe: ID."""
     if kind not in ("call", "rec"):
         raise HTTPException(404)
-    r = _clean_rule(await request.json(), kind == "rec")
+    r = _clean_rule(d, kind == "rec")
+    if rid is None:
+        return db.x(f"INSERT INTO {kind}_rules({','.join(r)}) VALUES({','.join('?' * len(r))})", list(r.values()))
     if not db.q(f"SELECT 1 FROM {kind}_rules WHERE id=?", (rid,)):
         raise HTTPException(404)
     db.x(f"UPDATE {kind}_rules SET {','.join(k + '=?' for k in r)} WHERE id=?", [*r.values(), rid])
-    return {"ok": True}
+    return rid
 
 
 @app.delete("/api/rules/{kind}/{rid}", dependencies=[Depends(auth)])
@@ -1725,13 +1749,21 @@ async def live_stream(request: Request, user: dict = Depends(user_auth)):
     async def gen():
         try:
             last = None
+            checked = time.monotonic()
             while not await request.is_disconnected():
+                # Sitzung regelmaessig pruefen und verlaengern: eine offene Seite (z. B. ueber Nacht) bleibt angemeldet;
+                # ist sie abgelaufen, sagt der Strom das der Seite (statt still keine Aenderungen mehr zu liefern)
+                if time.monotonic() - checked > 300:
+                    checked = time.monotonic()
+                    if not current_user(request):
+                        yield "event: logout\ndata: 1\n\n"
+                        break
                 snap = json.dumps(live_snapshot(user), separators=(",", ":"))
                 if snap != last:
                     last = snap
                     yield f"data: {snap}\n\n"
                 else:
-                    yield ": ping\n\n"
+                    yield "event: ping\ndata: 1\n\n"          # sichtbar fuer die Seite: Lebenszeichen (Kommentare sieht sie nicht)
                 try:
                     ev = await asyncio.wait_for(q.get(), 10)     # nach spaetestens 10 s neu pruefen (Ablauf klingelnder Anrufe)
                     if ev.get("type") not in ("call", "end", "ring", "agent", "note"):      # note: Nachricht aufgenommen (Banner)
@@ -2227,11 +2259,12 @@ def costs():
         months.append({"month": mo, "calls": 0, "cost_usd": e["cost"], "tokens": e["tokens"], "seconds": 0})
     months.sort(key=lambda r: r["month"], reverse=True)
     agents_m = [dict(r) for r in agents_m]
-    cur = db.q(f"SELECT COUNT(*) AS n, SUM(cost_usd) AS cost, SUM(in_text+in_audio+out_text+out_audio+think) AS tokens "
-               f"FROM usage_extra WHERE {xm}=strftime('%Y-%m','now','localtime')")[0]
-    if cur["n"]:
-        agents_m.append({"agent": "Ansagen und Stimmproben (ohne Anruf)", "calls": 0, "cost_usd": cur["cost"], "tokens": cur["tokens"]})
-        agents_m.sort(key=lambda r: r["cost_usd"] or 0, reverse=True)
+    for kind_is, label in (("=", "Assistent (Chat in der Oberfläche)"), ("!=", "Ansagen und Stimmproben (ohne Anruf)")):
+        cur = db.q(f"SELECT COUNT(*) AS n, SUM(cost_usd) AS cost, SUM(in_text+in_audio+out_text+out_audio+think) AS tokens "
+                   f"FROM usage_extra WHERE {xm}=strftime('%Y-%m','now','localtime') AND COALESCE(kind,'') {kind_is} ?", (assistant.KIND,))[0]
+        if cur["n"]:
+            agents_m.append({"agent": label, "calls": 0, "cost_usd": cur["cost"], "tokens": cur["tokens"]})
+    agents_m.sort(key=lambda r: r["cost_usd"] or 0, reverse=True)
     return {"months": months, "agents": agents_m}
 
 
@@ -2890,7 +2923,12 @@ async def new_staff(request: Request):
 
 @app.put("/api/staff/{sid}", dependencies=[Depends(auth)])
 async def put_staff(sid: int, request: Request):
-    d = clean_staff(await request.json(), sid)
+    return await save_staff_admin(sid, await request.json())
+
+
+async def save_staff_admin(sid, d):
+    """Speicherlogik von PUT /api/staff/{sid} (Administratoren; auch fuer den Assistenten)."""
+    d = clean_staff(d, sid)
     old = db.q("SELECT * FROM staff WHERE id=?", (sid,))
     out = None
     if old:
@@ -3331,7 +3369,7 @@ def get_settings():
             "open_now": state["open"] if state["configured"] else None, "state": state,
             "closed_text": db.get_meta("closed_text", ""),
             "screen_ring": int(db.get_meta("screen_ring", "25") or 25), "screen_max": int(db.get_meta("screen_max", "45") or 45),
-            "screen_wait_text": db.get_meta("screen_wait_text", ""), "screen_ai_name": db.get_meta("screen_ai_name", ""), "screen_voice": db.get_meta("screen_voice", ""), "detail_model": db.get_meta("detail_model", "") or models.DETAIL["id"], "vertex": {**gclient.settings(), "key_file": gclient.key_file_found()}, "transcribe_model": models.transcribe_model(db.get_meta("transcribe_model", ""))[0], "transcribe_models": [{"id": i, "label": l} for i, l, _ in models.TRANSCRIBE_CHOICES], "detail_models": [{"id": i, "label": l} for i, l in models.DETAIL_CHOICES], "screen_pace": db.get_meta("screen_pace", ""), "screen_extra": db.get_meta("screen_extra", ""), "screen_style": db.get_meta("screen_style", ""),
+            "screen_wait_text": db.get_meta("screen_wait_text", ""), "screen_ai_name": db.get_meta("screen_ai_name", ""), "screen_voice": db.get_meta("screen_voice", ""), "detail_model": db.get_meta("detail_model", "") or models.DETAIL["id"], "assistant_model": assistant.model_id(), "assistant_on": assistant.enabled(), "vertex": {**gclient.settings(), "key_file": gclient.key_file_found()}, "transcribe_model": models.transcribe_model(db.get_meta("transcribe_model", ""))[0], "transcribe_models": [{"id": i, "label": l} for i, l, _ in models.TRANSCRIBE_CHOICES], "detail_models": [{"id": i, "label": l} for i, l in models.DETAIL_CHOICES], "screen_pace": db.get_meta("screen_pace", ""), "screen_extra": db.get_meta("screen_extra", ""), "screen_style": db.get_meta("screen_style", ""),
             "ring_music": db.get_meta("ring_music", "0") == "1", "ring_music_after": hold.ring_after(),
             "screen_music": db.get_meta("screen_music", "1") != "0", "ring_delay": int(db.get_meta("ring_delay", "0") or 0), "moh_volume": hold.moh_volume(), "moh_live_db": hold.moh_live_db(), "ai_volume": aiaudio.ai_volume(), "ring_cid": db.get_meta("ring_cid", ""),
             "ring_track": db.get_meta("ring_track", ""), "screen_track": db.get_meta("screen_track", ""),
@@ -3510,6 +3548,12 @@ async def put_settings(request: Request):
         if d["detail_model"] not in [i for i, _ in models.DETAIL_CHOICES]:
             raise HTTPException(400, "Unbekanntes Modell")
         db.set_meta("detail_model", d["detail_model"])
+    if "assistant_model" in d:
+        if d["assistant_model"] not in [i for i, _ in models.DETAIL_CHOICES]:
+            raise HTTPException(400, "Unbekanntes Modell")
+        db.set_meta("assistant_model", d["assistant_model"])
+    if "assistant_on" in d:
+        db.set_meta("assistant_on", "1" if d["assistant_on"] else "0")
     if "screen_voice" in d:
         v = str(d["screen_voice"] or "")
         if v and v not in voices.VOICES:
@@ -3626,6 +3670,40 @@ async def fritz_state():
     return FRITZ_ST["v"]
 
 
+# --- Assistent (Chat in der Oberflaeche, assistant.py): lesen mit den Rechten des Nutzers, aendern nur nach "Uebernehmen" ---
+@app.get("/api/assistant")
+def assistant_info(user: dict = Depends(user_auth)):
+    return {"on": assistant.enabled(), "ready": gclient.ready("text"), "admin": user["role"] == "admin"}
+
+
+@app.post("/api/assistant/chat")
+async def assistant_chat(request: Request, user: dict = Depends(user_auth)):
+    """Eine Frage an den Assistenten. Body {messages: [{role: user|model, text}]} - der Verlauf liegt nur im Browser (Sitzung)."""
+    return await assistant.chat(user, (await request.json()).get("messages") or [])
+
+
+@app.post("/api/assistant/apply")
+async def assistant_apply(request: Request, user: dict = Depends(user_auth)):
+    """Vorschlag uebernehmen: vorhandene Speicherlogik mit denselben Pruefungen, Eintrag im Protokoll."""
+    return await assistant.apply(user, (await request.json()).get("token"))
+
+
+@app.post("/api/assistant/discard")
+async def assistant_discard(request: Request, user: dict = Depends(user_auth)):
+    return assistant.discard(user, (await request.json()).get("token"))
+
+
+@app.get("/api/assistant/changes")
+def assistant_changes(limit: int = 30, user: dict = Depends(user_auth)):
+    """Protokoll der uebernommenen Aenderungen: Benutzer die eigenen, Administratoren alle."""
+    return [assistant.public_change(c) for c in assistant.list_changes(user, limit)]
+
+
+@app.post("/api/assistant/changes/{cid}/undo")
+async def assistant_undo(cid: int, user: dict = Depends(user_auth)):
+    return await assistant.undo(user, cid)
+
+
 @app.get("/api/status")
 async def status(user: dict = Depends(user_auth)):
     if user["role"] != "admin":
@@ -3637,7 +3715,46 @@ async def status(user: dict = Depends(user_auth)):
         alert = None
     return {"role": "admin", "alert": alert, "usd_eur": r, "usd_eur_date": d, "active": len(active_calls()), "model": models.DEFAULT,
             "key": gclient.ready("text") and gclient.ready("live"), "access": gclient.settings()["scope"] or "key",
-            "fritz": await fritz_state()}
+            "fritz": await fritz_state(), "anomalies": anomaly.open_count()}
+
+
+# --- Auffaelligkeiten bei Anrufen (Selbstpruefung, anomaly.py; nur Administratoren) ---
+@app.get("/api/anomalies", dependencies=[Depends(auth)])
+def anomalies_list(open: int = 0):
+    return {"items": anomaly.items(only_open=bool(open)), "open": anomaly.open_count(),
+            "mail_recipients": len(anomaly.mail_recipients())}
+
+
+@app.post("/api/anomalies/{aid}/ack")
+def anomalies_ack(aid: int, user: dict = Depends(auth)):
+    if not anomaly.ack(aid, user.get("username") or ""):
+        raise HTTPException(404, "Nicht gefunden oder schon quittiert")
+    return {"ok": True, "open": anomaly.open_count()}
+
+
+@app.post("/api/anomalies/ack-all")
+def anomalies_ack_all(user: dict = Depends(auth)):
+    return {"ok": True, "acked": anomaly.ack(None, user.get("username") or ""), "open": 0}
+
+
+@app.get("/api/anomalies/config", dependencies=[Depends(auth)])
+def anomalies_cfg_get():
+    return {"cfg": anomaly.cfg(), "defaults": anomaly.defaults(),
+            "rules": [{"id": k, "label": l, "tip": t, "params": [{"id": p[0], "label": p[1], "default": p[2], "min": p[3], "max": p[4], "tip": p[5]}
+                                                                  for p in ps]} for k, l, t, ps in anomaly.RULES],
+            "mail": [{"id": p[0], "label": p[1], "default": p[2], "min": p[3], "max": p[4], "tip": p[5]} for p in anomaly.MAIL_OPTS],
+            "mail_recipients": len(anomaly.mail_recipients())}
+
+
+@app.put("/api/anomalies/config", dependencies=[Depends(auth)])
+async def anomalies_cfg_put(request: Request):
+    d = await request.json()
+    if not isinstance(d, dict):
+        raise HTTPException(400, "Objekt erwartet")
+    try:
+        return {"ok": True, "cfg": anomaly.save_cfg(d)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.websocket("/ws/live")
@@ -3850,6 +3967,9 @@ async def main():
     track(asyncio.create_task(fritz.refresh_phones()))
     track(asyncio.create_task(presence.loop(lambda ch: hub.publish({"type": "staff"}))))      # WLAN-Anwesenheit: nicht erreichbar <-> nicht stoeren
     track(asyncio.create_task(outrec.loop()))          # ausgehende Mitschrift: 99NNN angemeldet? sonst Notbetrieb (bisherige Nummer)
+    _loop = asyncio.get_running_loop()                 # Auffaelligkeiten: Hinweis an die Oberflaeche (record laeuft auch in Threads)
+    anomaly.ON_NEW.append(lambda: _loop.call_soon_threadsafe(hub.publish, {"type": "anomaly"}))
+    track(asyncio.create_task(anomaly.loop()))         # Selbstpruefung: Anrufe, Fritzbox-Protokoll/-Anrufliste, Sammelmail
     try:
         await asyncio.to_thread(hold.rebuild_classes)     # Wartemusik: eingebaute Melodie, Klassen und moh.conf fuer Asterisk
     except Exception:

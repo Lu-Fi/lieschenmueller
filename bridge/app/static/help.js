@@ -383,9 +383,37 @@ Jederzeit wieder erreichbar: <b>Einstellungen → Allgemein → Einrichtungsassi
   </ul></li>
  <li><b>Auch bei Gesprächen mit Mitschrift benachrichtigen</b>: Mails zu Gesprächen mit Mitschrift (ausgehend mit Vorwahl und „Ich telefoniere“). Das gilt unabhängig von den Rufnummern, der Ergebnis-Filter gilt dafür nicht.</li>
  <li><b>Täglicher Bericht</b> über alle Anrufe auf diese Rufnummern, zur eingestellten Uhrzeit.</li>
+ <li><b>Störungs-/Auffälligkeitsmeldungen</b> (Standard aus): Sammelmail der <a href="#/help/auffaelligkeiten">Selbstprüfung</a>, unabhängig von den Anruf-Mails und den Rufnummern.</li>
  <li>Wird ein Anruf von der KI durchgestellt, kommt die Mail erst, wenn das ganze Gespräch zu Ende ist.</li>
 </ul>
 <div class="hint">Mails enthalten Zusammenfassung und Transkript von Gesprächen und gehen über den Mailanbieter. Prüfe, ob das für deine Daten in Ordnung ist.</div>`
+},
+{
+ id: "assistent", group: "Einstieg", title: "Assistent „Lieschen“ (Chat)",
+ keys: "assistent chat lieschen helferin fragen erreichbarkeit warum ki anruf erklären regel vorschlag übernehmen rückgängig protokoll gemini",
+ html: `
+<p>Der <b>Assistent</b> (💬 in der Kopfzeile oder <b>Lieschen</b> unten rechts) beantwortet Fragen in normaler Sprache und schlägt auf Wunsch Änderungen vor.
+Er nutzt das Gemini-Textmodell über denselben Zugang wie die Zusammenfassungen (Vertex EU bzw. API-Schlüssel); die Kosten stehen unter Kosten als „Assistent“.</p>
+<h3>Was er beantwortet (nur lesen)</h3>
+<ul>
+ <li><b>Erreichbarkeit:</b> „Wer ist jetzt erreichbar?“, „Wohin ginge ein Anruf von Herrn Huber morgen um 18 Uhr?“ – nach derselben Rangfolge wie die Vorschau (nicht stören, Wählregel, Zeitplan, Status, Vertretung).</li>
+ <li><b>Regeln:</b> welche Anrufregel greift, welcher Agent annimmt, wie lange es vorher klingelt (Anrufregeln nur für Administratoren).</li>
+ <li><b>Anrufe:</b> „Warum ging der Anruf um 10:05 an die KI?“ – er sucht den Anruf und erklärt den Ablauf (wer klingelte, wie lange, warum das Klingeln endete, welche Regel), dazu Zusammenfassung und Auffälligkeiten.</li>
+ <li><b>Rufnummern und Telefone</b> aus dem zwischengespeicherten Stand (die Fritzbox wird dafür nicht neu gelesen).</li>
+</ul>
+<h3>Ändern nur mit Bestätigung</h3>
+<p>Wünschst du eine Änderung („Ich bin bis Freitag außer Haus“, „Herr Huber soll immer sofort mit der KI sprechen“), zeigt der Assistent eine <b>Karte mit vorher → nachher</b>.
+Erst <b>Übernehmen</b> speichert – mit denselben Prüfungen wie die normalen Seiten. Möglich sind: Anrufregeln (Administratoren), Status, Notiz, „abwesend bis“, Vertretung (Administratoren),
+Ausnahmen bei „nicht stören“, Wählregeln und „Ausgehende Gespräche mitschreiben“ (stellt die Telefone in der Fritzbox um).</p>
+<p>Jede übernommene Änderung steht im <b>Protokoll</b> (unten im Chat bzw. Einstellungen → Diagnose → Assistent: Änderungsprotokoll) und lässt sich mit <b>Rückgängig</b> zurücknehmen, solange dort nichts anderes geändert wurde.</p>
+<h3>Grenzen und Sicherheit</h3>
+<ul>
+ <li>Der Assistent arbeitet mit <b>deinen Rechten</b>: Benutzer sehen nur ihre eigenen Anrufe und ihren eigenen Eintrag; Nummern anderer Benutzer (z. B. außer Haus) erscheinen als „…“.</li>
+ <li><b>Nie:</b> Zugangsdaten, Passwörter, Schlüssel, Fritzbox-Zugang, Benutzerkonten und Rollen, Löschen von Anrufen oder Benutzern, Mails, Anrufe.</li>
+ <li>Inhalte aus Anrufen (Transkripte, Notizen) sind für ihn nur Daten. Entsteht ein Vorschlag nach dem Lesen solcher Inhalte, trägt die Karte einen Warnhinweis – übernimm ihn nur, wenn du die Änderung selbst wolltest.</li>
+ <li>Der Verlauf bleibt nur in diesem Browser-Tab („Neu“ leert ihn); gespeichert wird nur das Protokoll der Änderungen. Vorschläge gelten 30 Minuten.</li>
+ <li>Lieschen unten rechts lässt sich unter Meine Einstellungen → Darstellung ausblenden; ein Administrator kann den Assistenten unter Einstellungen → KI → Assistent (Chat) ganz abschalten und das Modell wählen.</li>
+</ul>`
 },
 {
  id: "einstellungen", group: "Einstellungen", title: "Einstellungen im Überblick",
@@ -394,7 +422,7 @@ Jederzeit wieder erreichbar: <b>Einstellungen → Allgemein → Einrichtungsassi
 <p>Die Einstellungen haben vier Tabs und ein Suchfeld, das alle Tabs durchsucht:</p>
 <ul>
  <li><b>Allgemein</b>: <b>Grundkonfiguration</b> (wird jedem Agenten vorangestellt), <b>Geschäftszeiten</b>, <b>Aufbewahrung</b> der Anrufe.</li>
- <li><b>KI</b>: <b>Stimme der KI</b> (Lautstärke, Name, Stimme, Tempo, Stil für die Rückfrage), <b>Auswertung der Gespräche</b> (Modelle für ausführliche Zusammenfassung und Transkript), <a href="#/help/vertex">Google-Zugang (Vertex AI)</a> und <a href="#/help/kosten">Kostenbremse</a>.</li>
+ <li><b>KI</b>: <b>Stimme der KI</b> (Lautstärke, Name, Stimme, Tempo, Stil für die Rückfrage), <b>Auswertung der Gespräche</b> (Modelle für ausführliche Zusammenfassung und Transkript), <a href="#/help/assistent">Assistent (Chat)</a> (an/aus, Modell), <a href="#/help/vertex">Google-Zugang (Vertex AI)</a> und <a href="#/help/kosten">Kostenbremse</a>.</li>
  <li><b>Telefonie</b>: Aufzeichnung, Klingeln der Telefone, <a href="#/help/rueckfrage">Rückfrage</a>, <a href="#/help/wartemusik">Wartemusik</a>.</li>
  <li><b>Anbindungen</b>: Google Gemini (Schlüssel), Fritzbox (Abfragen per TR-064), Fritzbox-Anmeldung von Asterisk, Google Kalender.</li>
 </ul>
@@ -507,6 +535,29 @@ Jederzeit wieder erreichbar: <b>Einstellungen → Allgemein → Einrichtungsassi
 <p>Ja, jedes Gespräch ist ein eigener Kanal mit eigener KI-Sitzung. Grenzen setzen Kosten und Bandbreite.</p>`
 },
 {
+ id: "auffaelligkeiten", group: "Hilfe bei Problemen", title: "Auffälligkeiten bei Anrufen (Selbstprüfung)",
+ keys: "auffälligkeiten störung selbstprüfung einweg ton rtcp ki hört nichts klingeln ohne wirkung klingelt nicht ereignisprotokoll fritzbox neueinwahl 480 606 nicht registriert verpasste anrufe watchdog wächter quittieren störungsmeldungen",
+ html: `
+<p>Die Anlage prüft sich im Hintergrund selbst und meldet, was auf eine Störung hindeutet. Nur <b>Administratoren</b> sehen die Meldungen: oben als <b>⚠ Zahl</b> (offene Meldungen), im Menü (☰) unter <b>Auffälligkeiten</b> als Liste und im <b>Ablauf</b> des betroffenen Anrufs als eigener Hinweis.</p>
+<h3>Was wird erkannt?</h3>
+<ul>
+ <li><b>Einweg-Ton / keine RTCP-Bestätigung:</b> angenommener oder von der KI geführter Anruf, bei dem die eingehende Leitung keine Rückmeldung der Gegenseite hatte (Laufzeit 0) und länger als 20 s lief, oder bei dem die KI weniger als 50 % der empfangenen Pakete zurückschickte (KI-Gespräch über 30 s). Normal sind gesendet ≈ empfangen.</li>
+ <li><b>KI hört nichts:</b> KI-Gespräch über 30 s mit vielen empfangenen Paketen (ab 1000, etwa 20 s Ton), aber ohne ein erkanntes Wort des Anrufers, und die KI hat wegen Stille aufgelegt.</li>
+ <li><b>Klingeln ohne Wirkung:</b> dasselbe Telefon klingelte bei 3 Anrufen in Folge bis zum Ende (mindestens 15 s, „180 Ringing“), ohne dass es je abgenommen wurde. Klingelt es wirklich (Lautstärke, Ruhezeit, Akku)?</li>
+ <li><b>Klingeln endet sofort:</b> das Klingeln an einem Telefon endete nach weniger als 3 s ohne erkennbaren Grund (nicht besetzt, nicht abgelehnt, kein anderes Telefon nahm ab, der Anrufer legte nicht auf), z. B. ein Direktruf auf **612, der sofort endet.</li>
+ <li><b>Ereignisprotokoll der Fritzbox</b> (alle 5 min, nur neue Zeilen): „Internettelefonie … nicht erfolgreich“ (480, 606 …), Internetverbindung getrennt (Neueinwahl), Anmeldung einer Rufnummer gescheitert.</li>
+ <li><b>Rufnummer nicht angemeldet:</b> eine eigene Rufnummer der Fritzbox ist zweimal in Folge nicht „registered“/„connected“.</li>
+ <li><b>Viele nicht zugestellte Anrufe:</b> in der Anrufliste der Fritzbox mindestens 10 verpasste oder abgewiesene Anrufe ohne klingelndes Telefon auf derselben Rufnummer innerhalb von 10 Minuten. Die Meldung ist neutral, z. B. „Rufnummer …1234: 35 Anrufe zwischen 12:46 und 12:53 von 2 Nummern, bei keinem hat ein Telefon geklingelt“.</li>
+ <li><b>Klingel-Rufnummern / Asterisk-Anmeldung:</b> eine Klingel-Rufnummer 99… ist nicht bei Asterisk angemeldet oder Asterisk nicht bei der Fritzbox. Das meldet schon der Wächter (<code>ops/watchdog.py</code>) per Mail, die <a href="#/help/ausgehend">ausgehende Mitschrift</a> schaltet selbst in den Notbetrieb; hier steht es nur zur Übersicht, ohne zweite Mail.</li>
+</ul>
+<p>Jede Regel lässt sich unter Einstellungen → <b>Diagnose</b> → „Auffälligkeiten erkennen“ ein- und ausschalten; die Schwellen stehen daneben (Tooltip zeigt die Bedeutung).</p>
+<h3>Quittieren</h3>
+<p><b>Quittieren</b> markiert eine Meldung als gesehen, das ⚠ oben verschwindet, wenn nichts mehr offen ist. Tritt dasselbe wieder auf (gleiche Art, gleiches Telefon bzw. gleiche Nummer, gleicher Tag), wird die Meldung wieder offen und zählt hoch, eine zweite Mail gibt es dafür nicht. Meldungen älter als 90 Tage werden gelöscht.</p>
+<h3>Mail</h3>
+<p>Mails gehen nur an Empfänger, bei denen unter <a href="#/help/mail">Benachrichtigungen</a> <b>„Störungs-/Auffälligkeitsmeldungen“</b> angekreuzt ist (Standard aus, unabhängig von den Anruf-Mails). Die Meldungen werden gesammelt: höchstens eine Mail je 15 Minuten und 6 am Tag (einstellbar). Ohne solchen Empfänger gibt es keine Mail, nur die Anzeige hier.</p>
+<div class="hint">Rufnummern stehen in den Meldungen nur gekürzt (letzte 4 Ziffern), Namen von Telefonen ungekürzt. Fehler beim Lesen der Fritzbox stören den Anrufbetrieb nicht; für Ereignisprotokoll und Anrufliste braucht der TR-064-Benutzer die Rechte „FRITZ!Box Einstellungen“ und „Anrufliste“.</div>`
+},
+{
  id: "datenschutz", group: "Hilfe bei Problemen", title: "Datenschutz und Sicherheit",
  keys: "datenschutz sicherheit dsgvo aufzeichnung einwilligung hinweis google gemini daten passwort konto rolle backup",
  html: `
@@ -517,6 +568,7 @@ Jederzeit wieder erreichbar: <b>Einstellungen → Allgemein → Einrichtungsassi
  <li><b>Anwesenheit über WLAN</b> ist freiwillig: nur die Person selbst schaltet sie ein (Meine Einstellungen). Es wird kein Bewegungsprofil gespeichert, nur der aktuelle Status. Der TR-064-Benutzer braucht dafür das Recht „FRITZ!Box Einstellungen“ und kann damit viel an der Fritzbox ändern – Zugangsdaten entsprechend schützen.</li>
  <li><b>Konten:</b> Nutze starke Passwörter (mindestens 10 Zeichen) und die Rolle „Eingeschränkt“ für Mitarbeiter.</li>
  <li><b>Zugangsdaten</b> (Gemini, Fritzbox, Mail) liegen in der Datenbank. Schütze den Ordner <code>data</code> und Sicherungen.</li>
+ <li><b>Assistent (Chat):</b> Fragen und die gelesenen Daten (z. B. Ablauf und Transkript-Auszug eines Anrufs) gehen an Gemini wie bei den Zusammenfassungen. Er ändert nur nach „Übernehmen“ und nie Zugangsdaten oder Konten; siehe <a href="#/help/assistent">Assistent</a>.</li>
  <li><b>Sicherung:</b> Sichere den Ordner <code>data</code> regelmäßig.</li>
 </ul>`
 },

@@ -59,6 +59,7 @@ MIGRATIONS = [
     ("calls", "memo", "TEXT NOT NULL DEFAULT ''"),
     ("mail_recipients", "inc_details", "INTEGER NOT NULL DEFAULT 1"), ("mail_recipients", "inc_transcript", "INTEGER NOT NULL DEFAULT 0"),
     ("mail_recipients", "inc_audio", "INTEGER NOT NULL DEFAULT 0"), ("mail_recipients", "inc_points", "INTEGER NOT NULL DEFAULT 0"), ("mail_recipients", "on_rec", "INTEGER NOT NULL DEFAULT 0"), ("mail_recipients", "on_status", "TEXT NOT NULL DEFAULT ''"),
+    ("mail_recipients", "on_anomaly", "INTEGER NOT NULL DEFAULT 0"),      # Stoerungs-/Auffaelligkeitsmeldungen (anomaly.py), unabhaengig von Anruf-Mails
     ("calls", "agent_chain", "TEXT NOT NULL DEFAULT ''"),
     ("calls", "direction", "TEXT NOT NULL DEFAULT 'in'"),
     ("calls", "task", "TEXT NOT NULL DEFAULT ''"),
@@ -213,6 +214,15 @@ CREATE TABLE IF NOT EXISTS call_events(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   call_id INTEGER NOT NULL, ts REAL NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS assistant_changes(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, user_id INTEGER, username TEXT NOT NULL DEFAULT '', area TEXT NOT NULL,
+  target_id INTEGER, title TEXT NOT NULL DEFAULT '', before_json TEXT, after_json TEXT, undone_ts REAL, undone_by TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS anomalies(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, last_ts REAL NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL UNIQUE,
+  text TEXT NOT NULL DEFAULT '', call_id INTEGER, count INTEGER NOT NULL DEFAULT 1, ack INTEGER NOT NULL DEFAULT 0,
+  ack_by TEXT NOT NULL DEFAULT '', ack_ts REAL, mail INTEGER NOT NULL DEFAULT 1, mailed INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -238,6 +248,7 @@ def conn():
         _conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_call ON segments(call_id)")
         _conn.execute("CREATE INDEX IF NOT EXISTS idx_call_events_call ON call_events(call_id)")      # Ablauf je Anruf (flow.py)
         _conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_started ON calls(started)")
+        _conn.execute("CREATE INDEX IF NOT EXISTS idx_anomalies_call ON anomalies(call_id)")      # Auffaelligkeiten je Anruf (anomaly.py)
         _conn.execute("DROP TABLE IF EXISTS call_access")      # alte Freigabetabelle; neu: call_shares (einzelne Anrufe an Benutzer freigeben)
         for table, col, decl in MIGRATIONS:
             cols = [r[1] for r in _conn.execute(f"PRAGMA table_info({table})")]

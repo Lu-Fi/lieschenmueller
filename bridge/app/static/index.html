@@ -89,6 +89,41 @@ body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;backgr
 /* "Bewegung reduzieren": keine Bewegung, nur ein ruhiges Symbol fuer die Dauer der Szene */
 @media (prefers-reduced-motion:reduce){.lvfx *{animation:none!important}.lvfx{animation-name:lvstill!important}.lvghost{animation:none!important}}
 @keyframes lvstill{0%,90%{opacity:1}100%{opacity:0}}
+/* Assistent: Chat-Panel rechts, Knopf unten rechts mit der Helferin "Lieschen" (eigenes Design: Kopf mit Headset aus den Banner-Szenen) */
+#asst{position:fixed;top:58px;right:0;bottom:0;z-index:35;width:min(430px,100vw);display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);box-shadow:-10px 0 34px rgba(0,0,0,.22);animation:asin .18s ease-out}
+@keyframes asin{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+#asst .ashead{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}#asst .ashead b{font-size:15px}#asst .ashead .sp{flex:1}
+#asst .asmsgs{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.asm{max-width:92%;padding:8px 12px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
+.asm.u{align-self:flex-end;background:var(--acc-soft);color:var(--fg);border-bottom-right-radius:4px}.asm.m{align-self:flex-start;background:var(--surface2);border-bottom-left-radius:4px}
+.asm.err{background:var(--bad-bg);color:var(--bad)}.asm .astools{display:block;font-size:11.5px;color:var(--mut);margin-top:4px}
+.ascard{align-self:stretch;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:10px;padding:10px 12px;background:var(--surface);font-size:13.5px}
+.ascard table{margin:6px 0;font-size:13px}.ascard td,.ascard th{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top;text-transform:none;letter-spacing:0}.ascard .ar{color:var(--mut)}
+.ascard .aswarn{border-left:3px solid var(--warn);background:var(--warn-bg);color:var(--warn);padding:6px 8px;border-radius:6px;margin:6px 0;font-size:12.5px}
+.ascard.done{border-left-color:#1a9d5a}.ascard.gone{opacity:.6;border-left-color:var(--line)}.ascard .asbtn{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+#asst .asin{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}#asst textarea{flex:1;resize:none;min-height:42px;max-height:140px;font:inherit;font-size:14px}
+#asst .aslog{border-top:1px solid var(--line);padding:6px 14px 10px;font-size:13px;max-height:34vh;overflow:auto}#asst .aslog summary{cursor:pointer;color:var(--mut);padding:4px 0}
+.aschg{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line)}.aschg .t{flex:1;min-width:0}.aschg .t small{color:var(--mut);display:block}
+#lzfab{position:fixed;right:18px;bottom:18px;z-index:34;width:60px;height:60px;border-radius:50%;border:1px solid var(--line);background:var(--surface);box-shadow:0 6px 22px rgba(0,0,0,.25);cursor:pointer;padding:0;display:grid;place-items:center}
+#lzfab:hover{border-color:var(--acc)}#lzfab:focus-visible{outline:2px solid var(--acc);outline-offset:3px}#lzfab .lzh{width:56px;height:51px;margin-left:4px}
+#lztip{position:fixed;right:88px;bottom:30px;z-index:34;max-width:260px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,.25);padding:10px 30px 10px 12px;font-size:13.5px;animation:tin .2s ease-out}
+#lztip button{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--mut);font-size:15px;cursor:pointer}
+#lztip:after{content:"";position:absolute;right:-7px;bottom:16px;width:12px;height:12px;background:var(--surface);border-right:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
+.lzh{display:block;overflow:visible}.lzh .f{fill:var(--surface2);stroke:var(--mut);stroke-width:1.5}.lzh .hr{fill:var(--mut)}.lzh .k{fill:var(--fg)}.lzh .ks{fill:none;stroke:var(--fg);stroke-width:1.3;stroke-linecap:round}
+.lzh .a{fill:none;stroke:var(--acc);stroke-width:1.8;stroke-linecap:round}.lzh .af{fill:var(--acc)}.lzh .as{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.3}
+.lzh .lzt,.lzh .lzmo2,.lzh .lzbr,.lzh .lzfr{opacity:0}.lzh .lzey,.lzh .lzhd,.lzh .lzmo2,.lzh .lzw{transform-box:fill-box;transform-origin:center}
+.lzh .lzhd{animation:lzbreath 4.2s ease-in-out infinite}.lzh .lzey{animation:lzblink 5.5s infinite}
+@keyframes lzbreath{0%,100%{transform:translateY(0)}50%{transform:translateY(-.5px)}}
+@keyframes lzblink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+.lzh.s-think .lzey{animation:none;transform:translate(.6px,-1.3px)}.lzh.s-think .lzt{opacity:1}.lzh.s-think .lzd{animation:lvdots .9s ease-in-out infinite}.lzh.s-think .lzd2{animation-delay:.15s}.lzh.s-think .lzd3{animation-delay:.3s}
+.lzh.s-talk .lzmo{opacity:0}.lzh.s-talk .lzmo2{opacity:1;animation:lztalk .2s ease-in-out 7 alternate}
+@keyframes lztalk{from{transform:scaleY(1)}to{transform:scaleY(.25)}}
+.lzh.s-nod .lzhd{transform-box:view-box;transform-origin:20px 30px;animation:lznod .9s ease-in-out 1}.lzh.s-nod .lzw{animation:lvwink .4s ease-in-out .3s 1}
+@keyframes lznod{0%,100%{transform:rotate(0)}25%{transform:translateY(1.2px) rotate(-5deg)}55%{transform:translateY(0) rotate(-5deg)}}
+.lzh.s-worry .lzbr,.lzh.s-worry .lzfr{opacity:1}.lzh.s-worry .lzmo{opacity:0}.lzh.s-worry .lzey{animation:none;transform:translateY(.5px)}
+#asst .ashead .lzh{width:54px;height:49px;flex:none}
+@media (prefers-reduced-motion:reduce){.lzh *{animation:none!important}#asst,#lztip{animation:none}}
+@media (max-width:600px){#asst{top:0;width:100vw;z-index:45}#lzfab{right:12px;bottom:12px}}
 header{position:sticky;top:0;z-index:5;display:flex;gap:20px;align-items:center;padding:0 24px;height:58px;background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
 .brand{white-space:nowrap;display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
 .logo{width:30px;height:30px;border-radius:8px;background:var(--acc);color:var(--acc-fg);display:grid;place-items:center;font-size:16px}
@@ -186,7 +221,8 @@ button:disabled{opacity:.5;cursor:default}
 .metacard{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:6px 0;background:var(--surface2)}
 .flow{list-style:none;margin:10px 0 0;padding:0 0 0 14px;border-left:2px solid var(--line)}.flow li{position:relative;display:flex;gap:10px;align-items:baseline;padding:3px 0;font-size:14px}
 .flow li:before{content:"";position:absolute;left:-19px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--mut)}.flow .ft{color:var(--mut);font-variant-numeric:tabular-nums;font-size:12px;min-width:58px}
-.flow .fx{flex:1;min-width:0;overflow-wrap:anywhere}.flow .fd{color:var(--mut);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.flow .fx{flex:1;min-width:0;overflow-wrap:anywhere}.flow li.fanom .fx{color:var(--warn);font-weight:600}.flow li.fanom:before{background:var(--warn)}.flow li.fanom.acked .fx{font-weight:400}
+#anombtn{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid transparent;background:var(--warn-bg);color:var(--warn);font:inherit;font-size:13px;font-weight:700;cursor:pointer}#anombtn:hover{border-color:var(--warn)}#anombtn.on{border-color:var(--warn)}.anrow.acked td{color:var(--mut)}.anprm{display:flex;flex-wrap:wrap;gap:10px 18px;margin:6px 0 4px 46px}.anprm label{margin:0;font-weight:500;font-size:13px}.anprm input{width:90px}.flow .fd{color:var(--mut);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .msum{border-left:4px solid var(--acc,#6c9bff);padding:2px 0 2px 14px;font-size:15.5px;line-height:1.65}
 .mrow{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:14px}
@@ -295,14 +331,15 @@ td div.hint::before,.kv div.hint::before,.chk div.hint::before,.acard div.hint::
 #wzbody a{color:var(--acc)}.wzwarn{border-left:3px solid var(--warn);padding-left:8px;font-size:12.5px;color:var(--fg);margin-top:8px}
 .tipi{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--neu-bg);color:var(--neu);font-size:11px;font-weight:700;cursor:help;vertical-align:1px;margin-left:4px}
 </style></head><body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-calls" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></symbol><symbol id="i-out" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/><path d="M15 1h6v6M21 1l-6 6"/></symbol><symbol id="i-agents" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13v2M15 13v2"/><circle cx="12" cy="4" r="1"/></symbol><symbol id="i-rules" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol><symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></symbol><symbol id="i-staff" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3.1-7 7-7s7 3 7 7M17 4.5a4 4 0 0 1 0 7M22 21c0-3-1.7-5.5-4.5-6.5"/></symbol><symbol id="i-contacts" viewBox="0 0 24 24"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h12"/></symbol><symbol id="i-costs" viewBox="0 0 24 24"><path d="M18 7a7 7 0 1 0 0 10M4 10h10M4 14h10"/></symbol><symbol id="i-numbers" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol><symbol id="i-campaign" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></symbol><symbol id="i-plugins" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/></symbol><symbol id="i-incoming" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/><path d="M16 8l6-6M16 2v6h6"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-calls" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></symbol><symbol id="i-out" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/><path d="M15 1h6v6M21 1l-6 6"/></symbol><symbol id="i-agents" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13v2M15 13v2"/><circle cx="12" cy="4" r="1"/></symbol><symbol id="i-rules" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol><symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></symbol><symbol id="i-staff" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3.1-7 7-7s7 3 7 7M17 4.5a4 4 0 0 1 0 7M22 21c0-3-1.7-5.5-4.5-6.5"/></symbol><symbol id="i-contacts" viewBox="0 0 24 24"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM4 17a3 3 0 0 1 3-3h12"/></symbol><symbol id="i-costs" viewBox="0 0 24 24"><path d="M18 7a7 7 0 1 0 0 10M4 10h10M4 14h10"/></symbol><symbol id="i-numbers" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></symbol><symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol><symbol id="i-campaign" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></symbol><symbol id="i-plugins" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/></symbol><symbol id="i-incoming" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/><path d="M16 8l6-6M16 2v6h6"/></symbol></svg>
 <header><div class="brand"><span class="wm" aria-label="Lieschen Müller"><span class="wm1">Lieschen</span><span class="wm2">Müller</span></span></div>
 <nav><button data-t="calls" class="on"><svg class=ic><use href="#i-calls"/></svg>Anrufe</button><button data-t="agents"><svg class=ic><use href="#i-agents"/></svg>Agenten</button><button data-t="rules"><svg class=ic><use href="#i-rules"/></svg>Regeln</button><button data-t="out"><svg class=ic><use href="#i-out"/></svg>Anruf starten</button></nav>
 <span class="sp"></span>
 <div class="menuwrap" id="mystw" hidden><button id="mystat" title="Mein Status" aria-haspopup="true" onclick="toggleMyStat(event)"></button><div id="mystmenu" hidden></div></div>
+<button id="anombtn" data-t="anomalies" hidden title="Auffälligkeiten bei Anrufen: offene Meldungen der Selbstprüfung (nur Administratoren)" aria-label="Offene Auffälligkeiten">⚠ <span id="anomn">0</span></button>
 <span id="st"></span>
 <div class="menuwrap"><button id="burger" aria-label="Menü" title="Weitere Bereiche" onclick="toggleMenu(event)">☰</button>
-<div id="menu" hidden><button data-t="staff"><svg class=ic><use href="#i-staff"/></svg>Benutzer</button><button data-t="contacts"><svg class=ic><use href="#i-contacts"/></svg>Kontakte</button><button data-t="costs"><svg class=ic><use href="#i-costs"/></svg>Kosten</button><button data-t="numbers"><svg class=ic><use href="#i-numbers"/></svg>Rufnummern</button><button data-t="mail"><svg class=ic><use href="#i-mail"/></svg>Benachrichtigungen</button><button data-t="settings"><svg class=ic><use href="#i-settings"/></svg>Einstellungen</button><button data-t="plugins"><svg class=ic><use href="#i-plugins"/></svg>Plugins</button></div></div><div class="acct"><button id="helpbtn" class="iconbtn" data-t="help" title="Hilfe" aria-label="Hilfe"><b style="font-size:16px;line-height:20px;width:20px;display:inline-block;text-align:center">?</b></button><button id="userbtn" class="iconbtn" data-t="account" title="Meine Einstellungen" aria-label="Meine Einstellungen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></button>
+<div id="menu" hidden><button data-t="staff"><svg class=ic><use href="#i-staff"/></svg>Benutzer</button><button data-t="contacts"><svg class=ic><use href="#i-contacts"/></svg>Kontakte</button><button data-t="costs"><svg class=ic><use href="#i-costs"/></svg>Kosten</button><button data-t="numbers"><svg class=ic><use href="#i-numbers"/></svg>Rufnummern</button><button data-t="mail"><svg class=ic><use href="#i-mail"/></svg>Benachrichtigungen</button><button data-t="anomalies"><svg class=ic><use href="#i-warn"/></svg>Auffälligkeiten</button><button data-t="settings"><svg class=ic><use href="#i-settings"/></svg>Einstellungen</button><button data-t="plugins"><svg class=ic><use href="#i-plugins"/></svg>Plugins</button></div></div><div class="acct"><button id="asstbtn" class="iconbtn" hidden title="Assistent: Fragen zu Erreichbarkeit, Regeln und Anrufen; Änderungen nur mit „Übernehmen“" aria-label="Assistent öffnen" onclick="asstToggle()"><span style="font-size:16px;line-height:20px">💬</span></button><button id="helpbtn" class="iconbtn" data-t="help" title="Hilfe" aria-label="Hilfe"><b style="font-size:16px;line-height:20px;width:20px;display:inline-block;text-align:center">?</b></button><button id="userbtn" class="iconbtn" data-t="account" title="Meine Einstellungen" aria-label="Meine Einstellungen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></button>
 <button id="logoutbtn" class="iconbtn" title="Abmelden" aria-label="Abmelden" onclick="logout()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button></div></header>
 <div id="alert"></div><div id="setupbar"></div><main id="m"></main>
 <script>const _fetch=window.fetch.bind(window);
@@ -346,7 +383,7 @@ const badge=(t,k,pulse)=>`<span class="badge b-${k}"><span class="dot ${pulse?"p
 const statusBadge=s=>({aktiv:badge("Aktiv","ok",1),beendet:badge("Beendet","neu"),durchgestellt:badge("Durchgestellt","info"),angenommen:badge("Angenommen","ok"),abgebrochen:badge("Abgebrochen","warn"),abgelehnt:badge("Abgelehnt","bad"),waehlt:badge("Wählt …","warn",1),"nicht erreicht":badge("Nicht erreicht","bad"),transkribiere:badge("Transkribiere …","info",1),unbeantwortet:badge("Nicht angenommen","warn"),"transkription fehlgeschlagen":badge("Transkription fehlgeschlagen","bad")}[s]||badge(s,"neu"));
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;sel=null;closeMenu();render()});
 /* Adressleiste = aktuelle Ansicht: F5 bleibt auf der Seite, Alt+Links/Rechts (Zurueck/Vor) wechselt zwischen Ansichten */
-const ALL_TABS=["calls","out","agents","rules","staff","contacts","costs","settings","numbers","mail","plugins","account","help","setup"];
+const ALL_TABS=["calls","out","agents","rules","staff","contacts","costs","settings","numbers","mail","plugins","account","help","setup","anomalies"];
 const tabsAllowed=()=>isAdmin()?[...ALL_TABS,...pluginTabs()]:["calls","account","help",...(ME.device?["out"]:[])];
 const hashFor=()=>"#/"+tab+(sel?"/"+sel:"");const parseSel=(s,t)=>t==="help"?(s||null):s==="new"?"new":/^\d+$/.test(s||"")?+s:null;
 function setNav(){
@@ -382,6 +419,7 @@ function render(){
  if(tab==="numbers") return numbersView();
  if(tab==="rules") return rulesView();
  if(tab==="mail") return mailView();
+ if(tab==="anomalies") return anomView();
  if(tab==="plugins") return pluginsView();
  if(tab.startsWith("plg-")) return pluginView(tab.slice(4));
  if(tab==="account") return accountView();
@@ -497,7 +535,7 @@ const flowClock=t=>new Date(t*1000).toLocaleTimeString("de-DE",{hour:"2-digit",m
 function flowHtml(ev){
  if(!ev||!ev.length)return"";
  return `<details class=metacard style="margin-top:10px" ${flowOpen?"open":""} ontoggle="flowOpen=this.open;try{localStorage.setItem('flowopen',this.open?'1':'0')}catch(e){}"><summary style="cursor:pointer;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)">Ablauf</summary>
- <ol class=flow>${ev.map(e=>`<li><span class=ft>${flowClock(e.ts)}</span><span class=fx>${esc(e.text)}</span><span class=fd title="Dauer bis zum nächsten Schritt">${flowDur(e.dur)}</span></li>`).join("")}</ol></details>`;
+ <ol class=flow>${ev.map(e=>`<li${e.kind==="anomaly"?` class="fanom${e.data&&e.data.ack?" acked":""}" title="Auffälligkeit der Selbstprüfung (nur für Administratoren sichtbar) – Liste unter ☰ → Auffälligkeiten"`:""}><span class=ft>${flowClock(e.ts)}</span><span class=fx>${esc(e.text)}</span><span class=fd title="Dauer bis zum nächsten Schritt">${flowDur(e.dur)}</span></li>`).join("")}</ol></details>`;
 }
 const MK={zusammenfassung:"Zusammenfassung",anliegen:"Anliegen",dringlichkeit:"Dringlichkeit",stimmung:"Stimmung",sprache:"Sprache",ergebnis:"Ergebnis",betrugsverdacht:"Betrugsverdacht",naechster_schritt:"Nächster Schritt",genannte_namen:"Genannte Namen"};
 function metaHtml(c){
@@ -674,7 +712,9 @@ function fxPanel(){return `<div class="panel pad at" data-k=d style="margin-bott
   <div class=hint>Ändert sich ein Anruf, spielt das Banner oben eine kurze Szene ab (ohne Ton): Es klingelt, die KI nimmt an, es wird durchgestellt, eine Nachricht wurde hinterlassen, aufgelegt. Gilt nur für diesen Browser. Ist im System „Bewegung reduzieren“ eingestellt, erscheint nur ein ruhiges Symbol.</div>
   <div class=fxbtns><span class=mut style="font-size:13px">Vorschau:</span>${[["ring","eingehend"],["transfer","durchgestellt"],["ai","KI nimmt an"],["end","aufgelegt"],["msg","Nachricht"]].map(([k,t])=>`<button class=s data-fx=${k} onclick="fxDemo('${k}')">${t}</button>`).join("")}</div>
   <div id=fxdemo class=fxdemo>${fxDemoRow("ai")}</div>
-  <div class=hint>Die Vorschau zeigt nur ein Beispiel-Banner; es wird kein Anruf ausgelöst.</div></div>`}
+  <div class=hint>Die Vorschau zeigt nur ein Beispiel-Banner; es wird kein Anruf ausgelöst.</div>
+  <label class=sw style="margin-top:16px" title="Kleiner runder Knopf unten rechts, der den Assistenten öffnet. Der Assistent bleibt über 💬 in der Kopfzeile erreichbar."><input type=checkbox id=my_lz ${lzOn()?"checked":""} onchange="lzSet(this.checked)"><span class=swt></span><span>Lieschen-Helferin anzeigen</span></label>
+  <div class=hint>Lieschen sitzt unten rechts und öffnet den Assistenten (Chat). Sie blinzelt ab und zu, denkt bei einer Anfrage nach und nickt nach einer übernommenen Änderung. Gilt nur für diesen Browser; bei „Bewegung reduzieren“ bleibt sie still.</div></div>`}
 function liveRender(d){
  lvLast=d;
  const items=[...d.calls.map(c=>({...c,live:1})),...(d.humans||[]).filter(x=>!d.calls.some(c=>c.id===x.id)).map(x=>({...x,live:2})),...d.ringing.filter(r=>!d.calls.some(c=>c.id===r.id)&&!(d.humans||[]).some(x=>x.id===r.id)).map(r=>({...r,live:0}))];
@@ -699,11 +739,25 @@ function liveRender(d){
  b.innerHTML=rows.join("");
 }
 function lvToggle(id){lvOpen=lvOpen===id?null:id;lvSig="";if(lvLast)liveRender(lvLast)}
+// Live-Strom mit Lebenszeichen: Der Server schickt mind. alle 10 s etwas. Kommt 40 s nichts (z. B. VPN/WLAN weg, Rechner im
+// Ruhezustand, haengende Verbindung), wird neu verbunden und die Anrufliste nachgeladen - sonst bliebe eine ueber Nacht offene
+// Seite still stehen. Ist die Sitzung abgelaufen, geht es zur Anmeldung.
+let liveES=null,liveBeat=0,liveFirst=true;
 function liveStart(){
- const es=new EventSource("/api/live/stream");
- es.onmessage=e=>{try{liveRender(JSON.parse(e.data))}catch(x){}};
- es.onerror=()=>{es.close();setTimeout(liveStart,3000)};   // Abbruch: nach 3 s neu verbinden
+ if(liveES){try{liveES.close()}catch(e){}}
+ const es=liveES=new EventSource("/api/live/stream");
+ liveBeat=Date.now();
+ es.onopen=()=>{liveBeat=Date.now();if(!liveFirst&&typeof listLater==="function")listLater();liveFirst=false};
+ es.onmessage=e=>{liveBeat=Date.now();try{liveRender(JSON.parse(e.data))}catch(x){}};
+ es.addEventListener("ping",()=>{liveBeat=Date.now()});
+ es.addEventListener("logout",()=>{es.close();location.href="/login"});
+ es.onerror=async()=>{es.close();if(liveES!==es)return;
+  try{const r=await fetch("/api/status",{cache:"no-store"});if(r.status===401){location.href="/login";return}}catch(x){}
+  setTimeout(()=>{if(liveES===es)liveStart()},3000)};
 }
+setInterval(()=>{if(liveES&&Date.now()-liveBeat>40000)liveStart()},10000);
+addEventListener("online",()=>liveStart());
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-liveBeat>15000)liveStart()});
 async function ringAct(id,action){
  const to=($("#lv_n"+id)?.value.trim()||$("#lv_s"+id)?.value||"");
  if(action==="route"&&!to)return $("#lv_msg").textContent="Benutzer wählen oder Nummer eingeben";
@@ -1296,7 +1350,7 @@ async function mailView(){
  <div class=panel><table><tr><th>E-Mail</th><th>Rufnummern</th><th>Benachrichtigung</th><th>Tagesbericht</th><th></th></tr>`+
  (d.recipients.map(r=>`<tr class="${r.enabled?"":"mut"}"><td><b>${esc(r.email)}</b>${r.label?`<div class=mut style="font-size:12px">${esc(r.label)}</div>`:""}</td>
    <td>${r.numbers?r.numbers.split(",").map(n=>`<span class="badge b-info" style="margin:0 4px 2px 0">${esc(n)}</span>`).join(""):'<span class=mut>alle</span>'}</td>
-   <td>${r.on_rec?badge("auch Mitschrift","info")+" ":""}${ONCALL[r.on_call]}${r.on_call!=="off"?` <span class=mut style="font-size:12px">(${r.detail==="full"?"mit Transkript":"Kurzfassung"})</span>`:""}${r.on_call!=="off"&&r.on_status?`<div class=mut style="font-size:12px">nur: ${esc(r.on_status.split(",").map(k=>(mailData.statuses.find(x=>x.id===k)||{}).label||k).join(", "))}</div>`:""}</td><td>${r.daily?"ja":"–"}</td>
+   <td>${r.on_rec?badge("auch Mitschrift","info")+" ":""}${r.on_anomaly?badge("Störungsmeldungen","warn")+" ":""}${ONCALL[r.on_call]}${r.on_call!=="off"?` <span class=mut style="font-size:12px">(${r.detail==="full"?"mit Transkript":"Kurzfassung"})</span>`:""}${r.on_call!=="off"&&r.on_status?`<div class=mut style="font-size:12px">nur: ${esc(r.on_status.split(",").map(k=>(mailData.statuses.find(x=>x.id===k)||{}).label||k).join(", "))}</div>`:""}</td><td>${r.daily?"ja":"–"}</td>
    <td style="text-align:right;white-space:nowrap"><button class=s onclick="rcpReport(${r.id})" title="Tagesbericht bis jetzt senden">Bericht jetzt</button> <button class=s onclick="rcpEdit(${r.id})">Bearbeiten</button> <button class=d onclick="rcpDel(${r.id})">✕</button></td></tr>`).join("")||`<tr><td colspan=5 class=empty>Noch kein Empfänger.</td></tr>`)+`</table></div>`;
 }
 async function mailSave(){
@@ -1331,6 +1385,7 @@ function rcpEdit(id){
    </div></div></div>
   <label class=chk><input type=checkbox id=rc_onrec ${r.on_rec?"checked":""}> <span>Auch bei <b>Gesprächen mit Mitschrift</b> benachrichtigen <span class=hint>(ausgehend mit Vorwahl z. B. 000 und „Ich telefoniere“ – unabhängig von den Rufnummern oben; gleicher Inhalt wie die Anruf-Mail)</span></span></label>
   <label class=chk><input type=checkbox id=rc_daily ${r.daily?"checked":""}> Täglicher Bericht über alle Anrufe auf diese Rufnummern</label>
+  <label class=chk title="Unabhängig von den Anruf-Mails und den Rufnummern oben. Gebündelt: höchstens eine Sammelmail je 15 Minuten (einstellbar unter Einstellungen → Diagnose → Auffälligkeiten erkennen), jede Meldung nur einmal, mit Tageslimit."><input type=checkbox id=rc_anom ${r.on_anomaly?"checked":""}> <span><b>Störungs-/Auffälligkeitsmeldungen</b> <span class=hint>(Selbstprüfung: Einweg-Ton, Klingeln ohne Wirkung, Fritzbox-Störungen … als Sammelmail; Standard aus)</span></span></label>
   <label class=chk><input type=checkbox id=rc_en ${r.enabled?"checked":""}> Aktiv</label>
   <div class=actions><button class=p onclick="rcpSave(${id||0})">Speichern</button><button class=s onclick="$('#rcp_ed').innerHTML=''">Abbrechen</button></div></div>`;
  rcpToggle();
@@ -1340,12 +1395,56 @@ function rcpToggle(){const on=$("#rc_send").checked,o=$("#rc_opts");o.style.opac
 async function rcpSave(id){
  const sts=[...document.querySelectorAll(".rc_st:checked")].map(e=>e.value);
  if($("#rc_send").checked&&!sts.length)return toast("Bitte mindestens ein Ergebnis auswählen.");
- const d={email:$("#rc_email").value,label:$("#rc_label").value,numbers:[...document.querySelectorAll(".rc_num:checked")].map(e=>e.value).join(","),on_status:sts,on_call:$("#rc_send").checked?($("#rc_imp").checked?"important":"all"):"off",inc_points:$("#rc_ipt").checked,inc_details:$("#rc_idet").checked?1:0,inc_transcript:$("#rc_itr").checked?1:0,inc_audio:$("#rc_iau").checked?1:0,daily:$("#rc_daily").checked,on_rec:$("#rc_onrec").checked?1:0,enabled:$("#rc_en").checked?1:0};
+ const d={email:$("#rc_email").value,label:$("#rc_label").value,numbers:[...document.querySelectorAll(".rc_num:checked")].map(e=>e.value).join(","),on_status:sts,on_call:$("#rc_send").checked?($("#rc_imp").checked?"important":"all"):"off",inc_points:$("#rc_ipt").checked,inc_details:$("#rc_idet").checked?1:0,inc_transcript:$("#rc_itr").checked?1:0,inc_audio:$("#rc_iau").checked?1:0,daily:$("#rc_daily").checked,on_rec:$("#rc_onrec").checked?1:0,on_anomaly:$("#rc_anom").checked?1:0,enabled:$("#rc_en").checked?1:0};
  const r=await fetch(id?"/api/mail/recipients/"+id:"/api/mail/recipients",{method:id?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(d)});
  if(!r.ok)return toast((await r.json()).detail||"Speichern fehlgeschlagen");mailView();
 }
 async function rcpDel(id){if(!await askConfirm("Empfänger löschen?"))return;await fetch("/api/mail/recipients/"+id,{method:"DELETE"});mailView()}
 async function rcpReport(id){const r=await post(`/api/mail/recipients/${id}/report`),j=await r.json().catch(()=>({}));toast(r.ok?"Bericht gesendet.":(j.detail||"Fehler"))}
+/* ---------- Auffaelligkeiten bei Anrufen (Selbstpruefung, anomaly.py; nur Admins) ---------- */
+let ANOM_OPEN=0,anomOnlyOpen=true,anomT=null;
+function paintAnom(n){
+ const b=$("#anombtn");if(!b)return;
+ if(typeof n==="number")ANOM_OPEN=n;
+ b.hidden=!isAdmin()||!ANOM_OPEN;$("#anomn").textContent=ANOM_OPEN;
+ b.title=`${ANOM_OPEN} offene ${ANOM_OPEN===1?"Auffälligkeit":"Auffälligkeiten"} bei Anrufen – anzeigen und quittieren`;
+}
+function anomLater(){clearTimeout(anomT);anomT=setTimeout(async()=>{try{const j=await api("/api/anomalies?open=1");paintAnom(j.open)}catch(e){}
+ if(tab==="anomalies")anomView()},800)}
+async function anomView(){
+ const j=await api("/api/anomalies"+(anomOnlyOpen?"?open=1":""));paintAnom(j.open);
+ const rows=j.items||[];
+ $("#m").innerHTML=`<div class=head><div><h2><svg class=ic><use href="#i-warn"/></svg>Auffälligkeiten</h2><p class=sub style="margin:0">Selbstprüfung der Anlage: Leitungswerte und Ablauf der Anrufe, Ereignisprotokoll und Anrufliste der Fritzbox. Nur für Administratoren sichtbar.</p></div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class=sw style="margin:0"><input type=checkbox ${anomOnlyOpen?"checked":""} onchange="anomOnlyOpen=this.checked;anomView()"><span class=swt></span><span class=swl>nur offene</span></label>
+  ${j.open?`<button class=s onclick="anomAckAll()" title="Alle offenen Meldungen als gesehen markieren">Alle quittieren</button>`:""}<button class=s onclick="anomRules()" title="Regeln ein-/ausschalten und Schwellen ändern">Regeln einstellen</button></div></div>
+  <div class=hint style="margin:-4px 0 12px">${j.mail_recipients?`Mail: ${j.mail_recipients} ${j.mail_recipients===1?"Empfänger hat":"Empfänger haben"} „Störungs-/Auffälligkeitsmeldungen“ eingeschaltet (Sammelmail).`:`Keine Mail: kein Empfänger hat „Störungs-/Auffälligkeitsmeldungen“ eingeschaltet (Benachrichtigungen → Empfänger bearbeiten).`} Fehlende Klingel-Rufnummern und die Anmeldung von Asterisk meldet der Wächter (<code>ops/watchdog.py</code>) per Mail; hier stehen sie nur zur Übersicht.</div>
+  <div class=panel><table><tr><th>Zeit</th><th>Art</th><th>Meldung</th><th title="So oft ist dieselbe Meldung aufgetreten">Anzahl</th><th></th></tr>${rows.map(r=>`<tr class="anrow${r.ack?" acked":""}"><td class=mut style="white-space:nowrap">${fmt(r.last_ts)}${r.last_ts-r.ts>60?`<div style="font-size:11px">seit ${fmt(r.ts)}</div>`:""}</td>
+   <td>${badge(r.label,r.ack?"neu":"warn")}${r.mail?"":`<div class=mut style="font-size:11px" title="Keine Mail von hier: die verschickt der Wächter">ohne Mail</div>`}</td><td style="overflow-wrap:anywhere">${esc(r.text)}${r.call_id?` <a href="#/calls/${r.call_id}">Anruf öffnen</a>`:""}</td><td class=num>${r.count>1?r.count+"×":""}</td>
+   <td style="text-align:right;white-space:nowrap">${r.ack?`<span class=mut style="font-size:12px" title="${esc(r.ack_by?"von "+r.ack_by:"")}">gesehen</span>`:`<button class=s onclick="anomAck(${r.id})" title="Als gesehen markieren. Tritt dasselbe wieder auf, erscheint die Meldung erneut (ohne zweite Mail).">Quittieren</button>`}</td></tr>`).join("")||`<tr><td colspan=5 class=empty>${anomOnlyOpen?"Keine offenen Auffälligkeiten.":"Noch keine Auffälligkeiten."}</td></tr>`}</table></div>`;
+}
+function anomRules(){window._sg="Diagnose";try{localStorage.setItem("setgrp","Diagnose")}catch(e){}tab="settings";sel=null;render()}
+async function anomAck(id){await post(`/api/anomalies/${id}/ack`);anomView()}
+async function anomAckAll(){if(!await askConfirm("Alle offenen Auffälligkeiten als gesehen markieren?"))return;await post("/api/anomalies/ack-all");anomView()}
+async function anomSettings(){
+ const box=$("#anomset");if(!box)return;
+ const j=await api("/api/anomalies/config"),c=j.cfg;
+ const prm=p=>`<label title="${esc(p.tip||"")}">${esc(p.label)} <input type=number class=an_p data-k="${p.id}" min=${p.min} max=${p.max} value="${esc(c[p.id])}" placeholder="${p.default}"> <span class=hint>Standard ${p.default}</span></label>`;
+ box.innerHTML=`<div class="panel pad scard"><div class=sec>Auffälligkeiten erkennen</div>
+  <p class=hint style="margin-top:0">Die Anlage prüft im Hintergrund jeden beendeten Anruf (Leitungswerte, Ablauf) und alle paar Minuten die Fritzbox (Ereignisprotokoll, Status der Rufnummern, Anrufliste). Treffer stehen unter ☰ → <a href="#/anomalies">Auffälligkeiten</a>, als ⚠-Hinweis oben und im Ablauf des Anrufs. Mail nur an Empfänger mit „Störungs-/Auffälligkeitsmeldungen“ (${j.mail_recipients?j.mail_recipients+" eingeschaltet":"derzeit keiner"}). Fehler beim Lesen der Fritzbox stören den Anrufbetrieb nicht.</p>
+  ${j.rules.map(r=>`<div style="margin:10px 0"><label class=sw title="${esc(r.tip)}"><input type=checkbox class=an_r data-k="${r.id}" ${c[r.id]?"checked":""}><span class=swt></span><span>${esc(r.label)}</span></label> <span class=tipi title="${esc(r.tip)}">?</span>
+   ${r.params.length?`<div class=anprm>${r.params.map(prm).join("")}</div>`:""}</div>`).join("")}
+  <div class=hint style="margin:14px 0 4px"><b>Mail</b> (Sammelmail, jede Meldung nur einmal)</div><div class=anprm style="margin-left:0">${j.mail.map(prm).join("")}</div>
+  <div class=actions><button class=p onclick="anomSave()">Speichern</button><button class=s onclick="anomReset()" title="Alle Regeln an, alle Schwellen auf den Standard">Standard</button><span class=hint id=an_msg style="align-self:center"></span></div></div>`;
+}
+async function anomSave(){
+ const d={};document.querySelectorAll(".an_r").forEach(e=>d[e.dataset.k]=e.checked);
+ document.querySelectorAll(".an_p").forEach(e=>{if(e.value!=="")d[e.dataset.k]=+e.value});
+ const r=await fetch("/api/anomalies/config",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(d)}),j=await r.json().catch(()=>({}));
+ if(!r.ok)return toast(j.detail||"Speichern fehlgeschlagen");await anomSettings();$("#an_msg").textContent="Gespeichert.";
+}
+async function anomReset(){if(!await askConfirm("Alle Regeln einschalten und alle Schwellen auf den Standard setzen?"))return;const j=await api("/api/anomalies/config");
+ const r=await fetch("/api/anomalies/config",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(j.defaults)});
+ if(!r.ok)return toast("Fehler");await anomSettings();$("#an_msg").textContent="Auf Standard gesetzt."}
 /* ---------- Plugins ---------- */
 let PLUGINS=[];
 const pluginPages=()=>PLUGINS.filter(p=>p.enabled&&p.loaded).flatMap(p=>p.pages.map(pg=>({...pg,plugin:p.name,ptitle:p.title})));
@@ -1463,6 +1562,7 @@ function live(){
  const ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/live");
  ws.onmessage=e=>{const m=JSON.parse(e.data);
   if(m.type==="call"||m.type==="end")liveBar();
+  if(m.type==="anomaly"){anomLater();return}
   if(m.type==="staff"){paintMyStat();if(tab==="staff"&&$("#slist")&&!$("#slist").hidden)staffView()}       // Status automatisch geaendert (WLAN-Anwesenheit)
   if(tab!=="calls")return;
   if(m.type==="call"||m.type==="end")refreshStatus();
@@ -2145,9 +2245,10 @@ function aiNameSample(){
  e.value=`Hallo, hier ist ${n||"dein Telefonassistent"}. Gerade wartet jemand in der Leitung. Hast du kurz Zeit?`;
 }
 const SGROUPS=[["Allgemein",["Einrichtungsassistent","Grundkonfiguration","Geschäftszeiten","Aufbewahrung"]],
- ["KI",["Stimme der KI","Auswertung der Gespräche","Google-Zugang (Datenschutz)","Kostenbremse"]],
+ ["KI",["Stimme der KI","Auswertung der Gespräche","Assistent (Chat)","Google-Zugang (Datenschutz)","Kostenbremse"]],
  ["Telefonie",["Aufzeichnung von Gesprächen","Klingeln der Telefone","Rückfrage vor dem Verbinden","Wartemusik"]],
- ["Anbindungen",["Google Gemini","Fritzbox","Google Kalender"]]];
+ ["Anbindungen",["Google Gemini","Fritzbox","Google Kalender"]],
+ ["Diagnose",["Auffälligkeiten erkennen","Assistent: Änderungsprotokoll"]]];
 function settingsCards(){return [...document.querySelectorAll("#m .scard")]}
 function cardTitle(c){const t=c.querySelector(".sec");return t&&t.childNodes[0]&&t.childNodes[0].textContent.trim()||(t?t.textContent.trim():"")}
 function cardGroup(c){const n=cardTitle(c);const g=SGROUPS.find(g=>g[1].some(x=>n.startsWith(x)));return g?g[0]:"Weitere"}
@@ -2161,7 +2262,7 @@ function settingsNav(){
  nav.innerHTML=names.map(g=>`<button data-g="${g}" class="${g===cur?"on":""}" onclick="settingsGroup('${g}')">${g}<span class=cnt>${cards.filter(c=>cardGroup(c)===g).length}</span></button>`).join("");
  if(!window._snavObs){window._snavObs=new MutationObserver(()=>{clearTimeout(window._snavT);window._snavT=setTimeout(()=>{if($("#snav_c"))settingsNav()},150)})}
  window._snavObs.disconnect();
- ["connset","holdset","gcalset"].forEach(id=>{const e=$("#"+id);if(e)window._snavObs.observe(e,{childList:true})});
+ ["connset","holdset","gcalset","anomset"].forEach(id=>{const e=$("#"+id);if(e)window._snavObs.observe(e,{childList:true})});
  settingsFilter();
 }
 function settingsGroup(g){window._sg=g;try{localStorage.setItem("setgrp",g)}catch(e){}const q=$("#snav_q");if(q)q.value="";settingsNav()}
@@ -2178,7 +2279,7 @@ function settingsNavKey(e){
  if(e.key==="Escape"){e.target.value="";settingsFilter()}
 }
 async function settingsView(){
- const [st,tracks,vs]=await Promise.all([api("/api/settings"),api("/api/hold-tracks"),api("/api/voices")]);budget=st.budget_eur;setTimeout(gcalSettings,0);setTimeout(connSettings,0);setTimeout(holdSettings,0);
+ const [st,tracks,vs]=await Promise.all([api("/api/settings"),api("/api/hold-tracks"),api("/api/voices")]);budget=st.budget_eur;setTimeout(gcalSettings,0);setTimeout(connSettings,0);setTimeout(holdSettings,0);setTimeout(anomSettings,0);setTimeout(asstLogLoad,0);
  $("#m").innerHTML=`<div class=head><div><h2><svg class=ic><use href="#i-settings"/></svg>Einstellungen</h2><p class=sub style="margin:0">Gilt für das ganze Telefonsystem.</p></div></div>
  <div class=snav id=snav><input id=snav_q type=search placeholder="Einstellung suchen …" autocomplete=off oninput="settingsFilter()" onkeydown="settingsNavKey(event)"><div class=stabs id=snav_c></div><div id=snav_none class=hint style="display:none;margin-top:8px">Keine Einstellung gefunden.</div></div>
  <div class="panel pad scard"><div class=sec>Einrichtungsassistent</div>
@@ -2206,6 +2307,11 @@ async function settingsView(){
  <p class=hint style="margin:16px 0 6px"><b>Transkript</b> (Mitschrift von Aufnahmen und vermittelten Gesprächen). Das günstige Modell reicht in der Regel. Ein genaueres Modell hilft bei Namen und Fachwörtern, kostet aber mehr. Es gilt für neue Transkripte.</p>
  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="margin:0">Modell</label><select id=s_tmodel style="max-width:420px">${(st.transcribe_models||[]).map(m=>`<option value="${m.id}" ${m.id===st.transcribe_model?"selected":""}>${esc(m.label)}</option>`).join("")}</select>
  <button class=p onclick="transModelSave()">Speichern</button><span id=s_tmsg class=hint></span></div>
+ </div><div class="panel pad scard"><div class=sec>Assistent (Chat)</div>
+ <p class=hint style="margin-top:0">Der Assistent (💬 in der Kopfzeile, Lieschen unten rechts) beantwortet Fragen zu Erreichbarkeit, Regeln und Anrufen mit den Rechten des angemeldeten Benutzers und schlägt Änderungen vor, die erst mit „Übernehmen“ gespeichert werden. Er nutzt das Gemini-Textmodell über denselben Zugang wie die Zusammenfassungen (Vertex EU bzw. API-Schlüssel); die Kosten stehen unter Kosten als „Assistent“. Zugangsdaten, Konten und Löschen fasst er nie an.</p>
+ <label class=sw title="Aus: Knopf und Helferin verschwinden für alle, Anfragen werden abgelehnt"><input type=checkbox id=s_aon ${st.assistant_on?"checked":""}><span class=swt></span><span>Assistent für alle Benutzer anbieten</span></label>
+ <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"><label style="margin:0">Modell</label><select id=s_amodel style="max-width:420px" title="Ein stärkeres Modell versteht verwickelte Fragen besser, kostet aber mehr. Fällt es aus, wird ein günstiges verwendet.">${(st.detail_models||[]).map(m=>`<option value="${m.id}" ${m.id===st.assistant_model?"selected":""}>${esc(m.label)}</option>`).join("")}</select>
+ <button class=p onclick="asstSettingsSave()">Speichern</button><span id=s_amsg class=hint></span></div>
  </div><div class="panel pad scard"><div class=sec>Google-Zugang (Datenschutz)</div>
  <p class=hint style="margin-top:0">Standardmäßig nutzt die App die einfache Gemini-API. Mit <b>Vertex AI</b> laufen die Anfragen über dein Google-Cloud-Projekt in einer festen Region (Standort <code>eu</code>, die Datenverarbeitung bleibt dann in der EU). Dafür liegt der Dienstkonto-Schlüssel als <code>data/vertex.json</code> auf dem Server. Ist Vertex gewählt, aber nicht vollständig eingerichtet, schlägt die Anfrage fehl, es gibt keinen stillen Rückfall auf die einfache API. Modelle und Preise können bei Vertex abweichen, bitte nach dem Umschalten testen.</p>
  <div style="display:grid;grid-template-columns:minmax(150px,auto) minmax(0,1fr);gap:8px 10px;align-items:center;max-width:620px">
@@ -2266,6 +2372,8 @@ async function settingsView(){
  <div id=connset></div>
  <div id=holdset></div>
  <div id=gcalset></div>
+ <div id=anomset></div>
+ <div class="panel pad scard"><div class=sec>Assistent: Änderungsprotokoll</div><p class=hint style="margin-top:0">Alle Änderungen, die Benutzer über den Assistenten (💬 bzw. Lieschen unten rechts) übernommen haben, mit vorher → nachher. „Rückgängig“ stellt den vorherigen Stand über dieselbe Speicherlogik wieder her; das geht nicht mehr, wenn dort inzwischen etwas anderes geändert wurde.</p><div id=asstlog class=hint>Lädt …</div></div>
  <div class=hint style="margin-top:6px">Die KI stellt sich als Telefonassistent vor und nennt keine Namen, die hier oder im Agenten nicht stehen. Firmen- oder Personennamen müssen also hier stehen.</div>`;
  settingsNav();
 }
@@ -2674,7 +2782,7 @@ async function setupSip(){
  if(SETUP&&SETUP.steps.sip&&!SETUP.steps.registered)setupPoll();
 }
 function paintStatus(s){
- fx={rate:s.usd_eur,date:s.usd_eur_date};showAlert(s.alert);
+ fx={rate:s.usd_eur,date:s.usd_eur_date};showAlert(s.alert);paintAnom(s.anomalies);
  $("#st").innerHTML=`${badge(s.access==="all"?(s.key?"Vertex ok":"Vertex unvollständig"):s.access==="text"?(s.key?"Vertex + Key ok":"Zugang unvollständig"):(s.key?"API-Key ok":"API-Key fehlt"),s.key?"ok":"bad")}${s.fritz?badge(s.fritz==="ok"?"Fritzbox ok":s.fritz==="down"?"Fritzbox getrennt":"Fritzbox ?",s.fritz==="ok"?"ok":s.fritz==="down"?"bad":"warn"):""}${badge(s.active+" aktiv",s.active?"ok":"neu",s.active)}`;
 }
 async function refreshStatus(){try{paintStatus(await api("/api/status"))}catch(e){}paintMyStat()}
@@ -2706,12 +2814,144 @@ function applyRole(){
   $("#burger").parentElement.hidden=true;$("#st").hidden=true;
  }
 }
+/* ---------- Assistent (Chat): Fragen lesend beantworten, Aenderungen nur als Vorschlag mit "Übernehmen" ---------- */
+// Verlauf nur in dieser Browser-Sitzung (sessionStorage); gespeichert wird serverseitig nur das Protokoll der übernommenen Änderungen.
+// Helferin "Lieschen": Kopf mit Headset (wie in den Banner-Szenen), Zustaende idle/think/talk/nod/worry als CSS-Klassen.
+const LZSVG=`<svg class="lzh s-idle" viewBox="0 0 44 40" aria-hidden=true><g class=lzhd><g transform="translate(-26 -1.5)"><circle class=hr cx=46 cy=10.6 r=3.1 /><circle class=f cx=46 cy=23 r=9.5 /><path class=hr d="M36.4 21.6q.4-10.6 9.6-10.6t9.6 10.6q-2.6-5.4-9.6-5.6q-7 .2-9.6 5.6z"/>
+<g class=lzey><circle class=k cx=42.5 cy=23.6 r=1.15 /><circle class="k lzw" cx=49.5 cy=23.6 r=1.15 /></g>
+<path class=lzbr d="M40.9 21.3l3-1M51.1 21.3l-3-1" style="fill:none;stroke:var(--fg);stroke-width:1.1;stroke-linecap:round"/>
+<path class="ks lzmo" d="M42.7 27q3.3 2.5 6.6 0"/><ellipse class="k lzmo2" cx=46 cy=27.6 rx=1.7 ry=1.3 /><path class="ks lzfr" d="M43.3 28.4q2.7-1.7 5.4 0"/>
+<path class=a style="stroke-width:2.2" d="M35.4 22.5q.2-13 10.6-13t10.6 13"/><rect class=af x=33.6 y=20 width=3.6 height=7 rx=1.6 /><rect class=af x=54.8 y=20 width=3.6 height=7 rx=1.6 /><path class=a d="M35.6 27q.8 5.6 7.4 5.8"/><circle class=af cx=43.6 cy=32.8 r=1.5 /></g></g>
+<g class=lzt><circle class=as cx=33.5 cy=9 r=1.2 /><path class=as d="M34 1.2h7.5a2.6 2.6 0 0 1 0 5.2h-7.5a2.6 2.6 0 0 1 0-5.2z"/><circle class="af lzd" cx=35.2 cy=3.8 r=.8 /><circle class="af lzd lzd2" cx=37.8 cy=3.8 r=.8 /><circle class="af lzd lzd3" cx=40.4 cy=3.8 r=.8 /></g></svg>`;
+let ASST={on:false,ready:false,open:false,busy:false,hist:[]};
+const lzOn=()=>{try{return localStorage.getItem("lzhelp")!=="0"}catch(e){return true}};
+function lzState(st,ms){
+ clearTimeout(lzState.t);
+ document.querySelectorAll(".lzh").forEach(e=>e.setAttribute("class","lzh s-"+st));
+ if(ms)lzState.t=setTimeout(()=>lzState(ASST.busy?"think":"idle"),ms);
+}
+function asstSave(){try{sessionStorage.setItem("asst_hist",JSON.stringify(ASST.hist.slice(-60)))}catch(e){}}
+function asstLoad(){try{ASST.hist=JSON.parse(sessionStorage.getItem("asst_hist")||"[]")||[]}catch(e){ASST.hist=[]}}
+async function asstInit(){
+ let j={};try{j=await api("/api/assistant")}catch(e){}
+ ASST.on=!!j.on;ASST.ready=!!j.ready;asstLoad();
+ $("#asstbtn").hidden=!ASST.on;
+ if(!ASST.on&&ASST.open)asstToggle(false);
+ lzFab();
+}
+function lzFab(){
+ let f=$("#lzfab");const show=ASST.on&&lzOn()&&!ASST.open;
+ if(!show){if(f)f.remove();const t=$("#lztip");if(t)t.remove();return}
+ if(!f){f=document.createElement("button");f.id="lzfab";f.title="Lieschen, deine Assistentin: Fragen zu Erreichbarkeit, Regeln und Anrufen";f.setAttribute("aria-label","Assistent öffnen");
+  f.onclick=()=>asstToggle(true);f.innerHTML=LZSVG;document.body.appendChild(f)}
+ let seen=true;try{seen=localStorage.getItem("lz_tip")==="1"}catch(e){}
+ if(!seen&&!$("#lztip")){                       // einmaliger Tipp beim ersten Besuch, danach nie wieder von selbst
+  try{localStorage.setItem("lz_tip","1")}catch(e){}
+  setTimeout(()=>{if(!$("#lzfab")||ASST.open)return;const t=document.createElement("div");t.id="lztip";t.setAttribute("role","note");
+   t.innerHTML=`Frag mich z. B.: <i>„Warum ging der Anruf um 10 Uhr an die KI?“</i><button title="Schließen" aria-label="Tipp schließen" onclick="this.parentElement.remove()">✕</button>`;
+   document.body.appendChild(t)},1500);
+ }
+}
+function asstToggle(force){
+ ASST.open=force===undefined?!ASST.open:!!force;
+ const t=$("#lztip");if(t)t.remove();
+ let p=$("#asst");
+ if(!ASST.open){if(p)p.remove();$("#asstbtn").classList.remove("on");lzFab();return}
+ $("#asstbtn").classList.add("on");
+ if(!p){p=document.createElement("aside");p.id="asst";p.setAttribute("aria-label","Assistent");document.body.appendChild(p)}
+ p.innerHTML=`<div class=ashead>${lzOn()?LZSVG:"<span style='font-size:20px'>💬</span>"}<div><b>Lieschen</b> <span class=mut style="font-size:12.5px">· Assistentin</span><div class=mut style="font-size:12px;line-height:1.35">Liest mit deinen Rechten. Ändert nur, wenn du „Übernehmen“ klickst.</div></div><span class=sp></span>
+  <button class=s title="Neuer Chat: den Verlauf in diesem Browser leeren" onclick="asstClear()">Neu</button><button class=iconbtn title="Schließen" aria-label="Assistent schließen" onclick="asstToggle(false)">✕</button></div>
+  <div class=asmsgs id=asmsgs aria-live=polite></div>
+  <div class=asin><textarea id=asq rows=2 maxlength=2000 placeholder="Frage oder Wunsch, z. B. „Wer ist jetzt erreichbar?“" title="Enter sendet, Umschalt+Enter macht eine neue Zeile"></textarea><button class=p id=assend onclick="asstSend()" title="Frage an die Assistentin schicken (Gemini-Textmodell, kostet etwas)">Senden</button></div>
+  <details class=aslog id=aslog ontoggle="if(this.open)asstChanges()"><summary title="Über den Assistenten übernommene Änderungen; „Rückgängig“ stellt den vorherigen Stand wieder her">Letzte Änderungen über den Assistenten</summary><div id=aschg class=hint>Lädt …</div></details>`;
+ const q=$("#asq");q.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSend()}};
+ lzFab();asstRender();q.focus();lzState(ASST.busy?"think":"idle");
+}
+function asstClear(){if(ASST.busy)return;ASST.hist=[];asstSave();asstRender()}
+// Antworttext: wenig Markdown (fett, kursiv, Code, Aufzaehlung); interne Nummern **610 bleiben unangetastet
+const asTxt=t=>{let s=esc(t).replace(/\\\*/g,"*").replace(/\*\*(\d{1,4})\b/g,"\u0001$1");
+ s=s.replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/(^|[\s(])\*([^*\s][^*\n]*?)\*(?=[\s).,:;!?]|$)/g,"$1<i>$2</i>")
+  .replace(/^[*-] /gm,"• ");
+ return s.replace(/\u0001/g,"**")};
+function asstCard(c,i,k){
+ const st=c.state||"";
+ return `<div class="ascard ${st==="done"?"done":st?"gone":""}"><b>${esc(c.title)}</b> <span class=ar>(${esc(c.area)})</span>
+  <table><tr><th>Feld</th><th>vorher</th><th>nachher</th></tr>${(c.diff||[]).map(d=>`<tr><td>${esc(d.feld)}</td><td class=ar>${esc(d.vorher)}</td><td><b>${esc(d.nachher)}</b></td></tr>`).join("")}</table>
+  ${c.warn?`<div class=aswarn>⚠ ${esc(c.warn)}</div>`:""}${c.note?`<div class=hint style="margin:4px 0">${esc(c.note)}</div>`:""}
+  <div class=asbtn>${st?`<span class=hint style="margin:0">${st==="done"?"✓ übernommen":st==="no"?"abgebrochen":esc(st)}</span>`:
+   `<button class=p onclick="asstApply(${i},${k})" title="Speichert die Änderung mit denselben Prüfungen wie die Oberfläche und trägt sie ins Protokoll ein (Rückgängig möglich)">Übernehmen</button><button class=s onclick="asstDiscard(${i},${k})" title="Vorschlag verwerfen, nichts ändern">Abbrechen</button>`}</div></div>`;
+}
+function asstRender(){
+ const box=$("#asmsgs");if(!box)return;
+ box.innerHTML=ASST.hist.length?ASST.hist.map((m,i)=>`<div class="asm ${m.role==="user"?"u":"m"}${m.err?" err":""}">${asTxt(m.text)}</div>${(m.cards||[]).map((c,k)=>asstCard(c,i,k)).join("")}`).join(""):
+  `<div class="asm m">Hallo${ME.staff_name?" "+esc(ME.staff_name.split(" ")[0]):""}! Ich beantworte Fragen zu Erreichbarkeit, Anrufregeln und Anrufen, z. B.:
+• Wer ist jetzt für Anrufe von außen erreichbar?
+• Warum ging der Anruf um 10:05 an die KI?
+• Ich bin bis Freitag 18 Uhr außer Haus.
+Änderungen schlage ich nur vor – übernommen wird erst, wenn du auf „Übernehmen“ klickst.${ASST.ready?"":"\n\n⚠ Gemini ist noch nicht eingerichtet; ich kann noch nicht antworten."}</div>`;
+ if(ASST.busy)box.insertAdjacentHTML("beforeend",`<div class="asm m">${SPIN}denkt nach …</div>`);
+ box.scrollTop=box.scrollHeight;
+}
+async function asstSend(){
+ const q=$("#asq");const text=(q.value||"").trim();if(!text||ASST.busy)return;
+ q.value="";ASST.hist.push({role:"user",text});ASST.busy=true;asstSave();asstRender();lzState("think");$("#assend").disabled=true;
+ let j={},ok=false;
+ try{const r=await post("/api/assistant/chat",{messages:ASST.hist.filter(m=>!m.err).map(m=>({role:m.role,text:m.text}))});j=await r.json().catch(()=>({}));ok=r.ok}
+ catch(e){j={detail:"Keine Verbindung zur Anlage"}}
+ ASST.busy=false;
+ const err=!ok||!!j.error;
+ ASST.hist.push({role:"model",text:j.reply||j.detail||"Fehler",err,cards:j.proposals||[]});
+ asstSave();asstRender();if($("#assend"))$("#assend").disabled=false;
+ lzState(err?"worry":"talk",err?3000:1600);
+}
+async function asstApply(i,k){
+ const c=((ASST.hist[i]||{}).cards||[])[k];if(!c||c.state)return;
+ const r=await post("/api/assistant/apply",{token:c.token}),j=await r.json().catch(()=>({}));
+ if(!r.ok){c.state=j.detail||"nicht übernommen";asstSave();asstRender();lzState("worry",3000);return toast(j.detail||"Nicht übernommen")}
+ c.state="done";asstSave();asstRender();lzState("nod",1300);
+ toast("Übernommen: "+c.title+(j.note?"\n"+j.note:""),"ok");
+ const d=$("#aslog");if(d&&d.open)asstChanges();
+ if(["rules","account","staff"].includes(tab))render();
+ paintMyStat();
+}
+async function asstDiscard(i,k){
+ const c=((ASST.hist[i]||{}).cards||[])[k];if(!c||c.state)return;
+ await post("/api/assistant/discard",{token:c.token});c.state="no";asstSave();asstRender();
+}
+function asstChgHtml(list,all){
+ if(!list.length)return `<div class=hint>Noch keine Änderungen über den Assistenten.</div>`;
+ return list.map(c=>`<div class=aschg><div class=t><b>${esc(c.title)}</b><small>${fmt(c.ts)}${all?" · "+esc(c.username):""} · ${esc(c.area)}${c.undone_ts?` · rückgängig gemacht${c.undone_by?" von "+esc(c.undone_by):""}`:""}</small>
+  <small>${(c.diff||[]).map(d=>`${esc(d.feld)}: ${esc(d.vorher)} → ${esc(d.nachher)}`).join("; ")}</small></div>
+  ${c.undone_ts?"":`<button class=s onclick="asstUndo(${c.id})" title="Stellt den Stand vor dieser Änderung wieder her (über dieselbe Speicherlogik). Geht nicht mehr, wenn dort inzwischen etwas anderes geändert wurde.">Rückgängig</button>`}</div>`).join("");
+}
+async function asstChanges(){
+ const box=$("#aschg");if(!box)return;
+ try{box.innerHTML=asstChgHtml(await api("/api/assistant/changes?limit=15"),isAdmin())}catch(e){box.textContent="Nicht lesbar"}
+}
+async function asstUndo(id){
+ if(!await askConfirm("Diese Änderung rückgängig machen? Der vorherige Stand wird wiederhergestellt."))return;
+ const r=await post(`/api/assistant/changes/${id}/undo`),j=await r.json().catch(()=>({}));
+ if(!r.ok){lzState("worry",3000);return toast(j.detail||"Rückgängig fehlgeschlagen")}
+ toast("Rückgängig gemacht","ok");asstChanges();asstLogLoad();
+ if(["rules","account","staff"].includes(tab))render();
+ paintMyStat();
+}
+async function asstLogLoad(){
+ const box=$("#asstlog");if(!box)return;
+ try{box.innerHTML=asstChgHtml(await api("/api/assistant/changes?limit=50"),true)}catch(e){box.textContent="Nicht lesbar"}
+}
+function lzSet(on){try{localStorage.setItem("lzhelp",on?"1":"0")}catch(e){}if(ASST.open)asstToggle(true);else lzFab()}
+async function asstSettingsSave(){
+ const r=await fetch("/api/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({assistant_on:$("#s_aon").checked,assistant_model:$("#s_amodel").value})}),j=await r.json().catch(()=>({}));
+ $("#s_amsg").textContent=r.ok?"Gespeichert.":(j.detail||"Fehler");
+ if(r.ok)asstInit();
+}
 (async()=>{
  const h0=location.hash;      // vor initRoute: wurde eine bestimmte Ansicht aufgerufen? (dann den Assistenten nicht vordraengen)
  ME=await api("/api/me");
  if(!ME.username){location.href="/login";return}
  try{LBL=await api("/api/labels")}catch(e){}
- applyRole();paintMyStat();
+ applyRole();paintMyStat();asstInit();
  const [s,st]=await Promise.all([api("/api/status"),isAdmin()?api("/api/settings"):Promise.resolve({})]);
  budget=st.budget_eur||0;paintStatus(s);if(isAdmin())await loadPlugins();initRoute();
  if(isAdmin())setupBoot(h0);
