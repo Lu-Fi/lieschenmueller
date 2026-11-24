@@ -63,6 +63,7 @@ MIGRATIONS = [
     ("calls", "agent_chain", "TEXT NOT NULL DEFAULT ''"),
     ("calls", "direction", "TEXT NOT NULL DEFAULT 'in'"),
     ("calls", "task", "TEXT NOT NULL DEFAULT ''"),
+    ("contacts", "aliases", "TEXT NOT NULL DEFAULT ''"),      # weitere Namen fuer die Suche (z. B. Petra Kurz zu Tierarztpraxis Pfote), mit ; getrennt
     ("staff", "msn", "TEXT NOT NULL DEFAULT ''"),
     ("staff", "record", "INTEGER NOT NULL DEFAULT 0"),
     ("staff", "deputy_id", "INTEGER"),
@@ -988,6 +989,20 @@ def _wmatch(w, n, fuzzy=False):
     return False
 
 
+def _variants(r):
+    """Name und weitere Namen (Spalte aliases, mit ; oder , getrennt) eines Kontakts."""
+    return [r["name"], *[a.strip() for a in re.split(r"[;,\n]+", r.get("aliases") or "") if a.strip()]]
+
+
+def clean_aliases(text):
+    out = []
+    for a in re.split(r"[;,\n]+", str(text or "")):
+        a = " ".join(a.split())[:60]
+        if a and a.casefold() not in (x.casefold() for x in out):
+            out.append(a)
+    return "; ".join(out[:10])
+
+
 def _name_hits(rows, query):
     """Treffer nach Name. Exakte Treffer haben Vorrang; nur ohne exakten Treffer zaehlen aehnlich geschriebene
     (Spracherkennung: Meier statt Maier). Existieren Meier und Maier, wird 'Meier' also nie als 'Maier' gedeutet."""
@@ -1000,7 +1015,7 @@ def _name_hits(rows, query):
         cores.append(core)
     for words in cores:
         for fuzzy in (False, True):
-            hit = [r for r in rows if all(any(_wmatch(w, n, fuzzy) for n in _norm(r["name"])) for w in words)]
+            hit = [r for r in rows if any(all(any(_wmatch(w, n, fuzzy) for n in _norm(v)) for w in words) for v in _variants(r))]
             if hit:
                 return hit
     return []
@@ -1022,8 +1037,10 @@ def save_contact(d, cid=None):
     sal = d.get("salutation") if d.get("salutation") in SALUTATIONS else ""
     vals = [d.get("name", ""), d.get("number", ""), d.get("note", ""), sal]
     if cid is None:
-        return x("INSERT INTO contacts(name,number,note,salutation) VALUES(?,?,?,?)", vals)
+        return x("INSERT INTO contacts(name,number,note,salutation,aliases) VALUES(?,?,?,?,?)", vals + [clean_aliases(d.get("aliases"))])
     x("UPDATE contacts SET name=?,number=?,note=?,salutation=? WHERE id=?", vals + [cid])
+    if "aliases" in d:
+        x("UPDATE contacts SET aliases=? WHERE id=?", (clean_aliases(d["aliases"]), cid))
     return cid
 
 

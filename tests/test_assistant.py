@@ -358,3 +358,60 @@ def test_real_ringing_reports_all_phones_on_alle(bridge, monkeypatch):
     out = assistant._real_ringing("**613, **612")
     assert "Mobilteil 1" in out[0] and "Mobilteil 2" in out[0] and "Lager" not in out[0]
     assert out[1].startswith("**612: direkt")
+
+
+def test_dialrule_belongs_where_calls_arrive(bridge, fake):
+    """„Alle Anrufe von 0555 12* an Petras Handy“: Petra hat keine eigene Rufnummer von außen, die Anrufe kommen bei der Zentrale an.
+    Ein Vorschlag bei Petra warnt; der Vorschlag bei der Zentrale leitet die Anrufe wirklich weiter."""
+    async def scenario(b):
+        sid = b.db.save_staff({"name": "Petra", "number": "**612", "away_number": "015550001234", "status": "office"})
+        zid = b.db.save_staff({"name": "Zentrale", "kind": "group", "number": "**610", "msn": "5550270"})
+        b.db.x("UPDATE staff SET msn='5550270' WHERE id=?", (zid,))
+        _login(b, "chef", "admin")
+        rule = {"name": "An Petras Handy", "nummern": ["055512*"], "aktion": "weiterleiten", "ziel": "015550001234"}
+        fake.steps = [[("vorschlag_waehlregel", {"person": "Petra", **rule}), ("vorschlag_waehlregel", {"person": "Zentrale", **rule})], "Zwei Vorschläge."]
+        try:
+            j = await _ask(b, "Alle Anrufe von 0555 12* sollen direkt auf Petras Handy")
+            assert len(j["proposals"]) == 2, fake.results()
+            at_petra, at_zentrale = j["proposals"]
+            assert "keine eigene Rufnummer von außen" in at_petra["note"] and "Zentrale" in at_petra["note"]
+            assert "Achtung" not in at_zentrale["note"]
+            assert (await b.http.post("/api/assistant/apply", json={"token": at_zentrale["token"]})).status_code == 200
+            z = b.db.q("SELECT * FROM staff WHERE id=?", (zid,))[0]
+            res = b.db.resolve(dict(z), caller="0555123456", called="5550270")
+            assert res["number"] == "015550001234" and res["rule"]
+            assert b.db.resolve(dict(z), caller="0555993456", called="5550270")["number"] != "015550001234"
+        finally:
+            main.app.dependency_overrides.clear()
+        assert "6a. Wählregeln wirken nur" in fake.requests[-1][2].system_instruction
+    run(bridge, scenario)
+
+
+def test_user_sees_forwards_to_own_numbers(bridge, fake):
+    """Fall aus dem Betrieb: eine Benutzerin (ohne Adminrechte) bat um „alle Anrufe von 055512* auf mein Handy“. Bei der Zentrale war das schon
+    eingerichtet, der Assistent sah es mit ihren Rechten nicht und schickte sie zum Administrator."""
+    async def scenario(b):
+        sid = b.db.save_staff({"name": "Petra", "number": "**612", "away_number": "015550001234", "status": "office"})
+        other = b.db.save_staff({"name": "Andere", "number": "**613", "away_number": "015550009999", "status": "office"})
+        zid = b.db.save_staff({"name": "Zentrale", "kind": "group", "number": "**610"})
+        rules = [{"name": "Gericht an Petra", "enabled": True, "caller_mode": "list", "callers": ["055512*"], "days": [], "from": "", "to": "",
+                  "called": [], "action": "forward", "target": "015550001234", "note": ""},
+                 {"name": "Bank an Andere", "enabled": True, "caller_mode": "list", "callers": ["055599*"], "days": [], "from": "", "to": "",
+                  "called": [], "action": "forward", "target": "015550009999", "note": ""}]
+        main._rules_put(zid, rules)
+        _login(b, "petra", "user", sid)
+        fake.steps = [[("rufnummern_telefone", {}),
+                       ("vorschlag_waehlregel", {"nummern": ["055512*"], "aktion": "weiterleiten", "ziel": "015550001234", "name": "Gericht"})],
+                      "Ist bereits eingerichtet."]
+        try:
+            j = await _ask(b, "Alle Anrufe von 055512* bitte direkt auf mein Handy")
+            res = dict(fake.results())["rufnummern_telefone"]
+            fw = res["weiterleitungen_zu_dir"]
+            assert [(f["bei"], f["regel"], f["nummern"]) for f in fw] == [("Zentrale", "Gericht an Petra", ["055512*"])]
+            assert "015550009999" not in str(res) and "Bank" not in str(res)        # fremde Regeln bleiben verborgen
+            note = j["proposals"][0]["note"]
+            assert note.startswith("Schon eingerichtet: bei Zentrale") and "keine eigene Rufnummer von außen" in note
+        finally:
+            main.app.dependency_overrides.clear()
+        assert "6b. Bevor du sagst" in fake.requests[-1][2].system_instruction
+    run(bridge, scenario)

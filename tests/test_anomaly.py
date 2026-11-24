@@ -175,11 +175,11 @@ LOG2 = """19.11.26 12:47:13 Internettelefonie mit 05550009876 über tel.example.
 def test_fritz_log_only_new_lines(bridge):
     db = bridge.db
     assert anomaly.check_log(LOG1) == 0 and kinds(db) == []          # erster Lauf: nur merken
-    assert anomaly.check_log(LOG2) == 3
+    assert anomaly.check_log(LOG2) == 2                              # der einzelne 480 beim Anbieter zaehlt erst gehaeuft
     rows = db.q("SELECT kind, text, mail FROM anomalies ORDER BY id")
-    assert [(r["kind"], r["mail"]) for r in rows] == [("ring_lines", 0), ("fritz_log", 1), ("fritz_log", 1)]
+    assert [(r["kind"], r["mail"]) for r in rows] == [("ring_lines", 0), ("fritz_log", 1)]
     assert "99613" in rows[0]["text"]                                # Klingel-Rufnummer: nur Anzeige (Mail macht der Waechter)
-    assert "…9876" in rows[1]["text"] and "05550009876" not in rows[2]["text"] and "480" in rows[2]["text"]
+    assert "…9876" in rows[1]["text"] and "05550009876" not in rows[1]["text"]
     assert anomaly.check_log(LOG2) == 0                              # nichts Neues
     more = "19.11.26 13:10:00 Internetverbindung wurde getrennt.\n" + LOG2
     assert anomaly.check_log(more) == 1
@@ -368,3 +368,45 @@ def test_fritz_errors_never_raise(bridge, monkeypatch):
         await anomaly.fritz_tick(T0)
     run(bridge, scenario)
     assert bridge.db.q("SELECT COUNT(*) n FROM anomalies")[0]["n"] == 0
+
+
+def test_inet_rule_switchable(bridge):
+    db = bridge.db
+    anomaly.check_log(LOG1)
+    anomaly.save_cfg({"inet": False})
+    off = "19.11.26 13:10:00 Internetverbindung wurde getrennt.\n" + LOG1
+    assert anomaly.check_log(off) == 0 and kinds(db) == []           # abgeschaltet: keine Meldung, Stand trotzdem weiter
+    anomaly.save_cfg({"inet": True})
+    on = "19.11.26 13:20:00 Zwangstrennung durch den Anbieter.\n" + off
+    assert anomaly.check_log(on) == 1
+    assert [r["kind"] for r in db.q("SELECT kind FROM anomalies")] == ["inet"]
+
+
+
+def _voip(t, who, via, cause):
+    return f"23.11.26 {t} Internettelefonie mit {who} über {via} war nicht erfolgreich. Ursache: {cause}\n"
+
+
+def test_fritz_log_filters_unimportant_telephony_errors(bridge):
+    """Fall aus dem Betrieb: Ablehnung (603), Telefon im Haus aus (480 über 192.168.x / Asterisk) und ein einzelner 500 beim Anbieter
+    sind keine Störung. Gemeldet wird erst eine Häufung beim Anbieter, und Abweisungen der Anmeldung (403) sofort."""
+    db = bridge.db
+    assert anomaly.check_log(LOG1) == 0
+    quiet = (_voip("09:53:00", "05550002525", "provider.example", "Decline (603)")
+             + _voip("10:01:00", "05550004598", "192.168.1.10", "Temporarily not available (480)")
+             + _voip("10:25:00", "Max%20fest", "192.168.1.133:5060", "Temporarily not available (480)")
+             + _voip("10:30:00", "05550001111", "fritz.box", "Busy Here (486)")
+             + _voip("11:57:28", "05550003617", "b.provider.example", "Server Internal Error (500)"))
+    assert anomaly.check_log(quiet + LOG1) == 0 and kinds(db) == []
+    burst = (_voip("12:20:00", "05550007777", "b.provider.example", "Request Timeout (408)")
+             + _voip("12:10:00", "05550006666", "b.provider.example", "Service Unavailable (503)"))
+    assert anomaly.check_log(burst + quiet + LOG1) == 1              # mit dem 500 von 11:57: 3 in 30 min
+    r = db.q("SELECT kind, text FROM anomalies")[0]
+    assert r["kind"] == "fritz_log" and "3 nicht erfolgreiche Verbindungen" in r["text"] and "408, 500, 503" in r["text"]
+    assert "05550007777" not in r["text"]
+    auth = _voip("12:30:00", "05550008888", "b.provider.example", "Forbidden (403)")
+    assert anomaly.check_log(auth + burst + quiet + LOG1) == 1
+    assert "Anbieter weist ab (403)" in db.q("SELECT text FROM anomalies ORDER BY id DESC LIMIT 1")[0]["text"]
+    anomaly.save_cfg({"voip_n": 1})
+    one = _voip("13:00:00", "05550009999", "b.provider.example", "Server Internal Error (500)")
+    assert anomaly.check_log(one + auth + burst + quiet + LOG1) == 1  # Schwelle einstellbar

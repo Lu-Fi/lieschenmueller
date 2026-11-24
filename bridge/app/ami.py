@@ -65,17 +65,31 @@ async def _read_block(r):
         lines.append(line)
 
 
+def originate_channel(number, uuid, variables=None):
+    """Kanal fuer Originate: eine Nummer direkt ueber die Fritzbox; mehrere Telefone im Haus (**610+**611) ueber den Hilfskanal
+    [vc-ring], der alle gleichzeitig klingeln laesst (wer zuerst abhebt, bekommt das Gespraech). __VCUUID erbt der Hilfskanal."""
+    if "+" not in number:
+        return f"PJSIP/{number}@fritz", variables
+    if not re.fullmatch(r"\*\*\d{1,4}(\+\*\*\d{1,4}){1,5}", number):
+        raise ValueError("Ungueltige Telefonliste")
+    return f"Local/{'-'.join(n[2:] for n in number.split('+'))}@vc-ring/n", {**(variables or {}), "__VCUUID": uuid}
+
+
 async def originate(number, uuid, timeout_s=45, context="outbound-ai", variables=None):
     """Laesst Asterisk die Nummer waehlen. Rueckgabe (ok, grund). Bei ok laeuft danach
     [outbound-ai] und der AudioSocket verbindet sich mit der Bridge."""
     secret = os.environ.get("AMI_SECRET", "")
+    try:
+        chan, variables = originate_channel(number, uuid, variables)
+    except ValueError as e:
+        return False, str(e)
     r, w = await asyncio.open_connection("127.0.0.1", 5038)
     try:
         await r.readline()  # Banner
         w.write(f"Action: Login\r\nUsername: bridge\r\nSecret: {secret}\r\nEvents: call\r\n\r\n".encode())
         if (await asyncio.wait_for(_read_block(r), 5)).get("Response") != "Success":
             return False, "AMI-Anmeldung fehlgeschlagen"
-        w.write((f"Action: Originate\r\nActionID: {uuid}\r\nChannel: PJSIP/{number}@fritz\r\n"
+        w.write((f"Action: Originate\r\nActionID: {uuid}\r\nChannel: {chan}\r\n"
                  f"Context: {context}\r\nExten: s\r\nPriority: 1\r\nTimeout: {timeout_s * 1000}\r\n"
                  f"Async: true\r\nVariable: CALLUUID={uuid}\r\n"
                  + "".join(f"Variable: {k}={v}\r\n" for k, v in (variables or {}).items())

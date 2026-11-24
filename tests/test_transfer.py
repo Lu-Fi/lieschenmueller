@@ -429,3 +429,18 @@ def test_screen_answer_kept_when_declined(bridge):
         await rectrans.transcribe(b.call_row(u)["id"], u)
         assert "Nein, gerade nicht." in b.segments(b.call_row(u)["id"], "local")
     run(bridge, scenario)
+
+
+def test_nothing_after_own_handover_announcement(bridge):
+    """Testanruf 23.11.: nach „Ich verbinde Sie nun“ haengte die KI bis zum Auflegen noch an: „It looks like we're waiting for the connection.“"""
+    u = str(uuid.uuid4())
+    bridge.genai.script(CONNECT + [("say", "It looks like we're waiting for the connection.")])
+
+    async def scenario(b):
+        setup_staff(b.db)
+        await start_ai(b, u)
+        said = b.segments(b.call_row(u)["id"], "agent")
+        assert any("Ich verbinde Sie" in t for t in said)
+        assert not any("waiting" in t for t in said)
+        assert "Ansage: Anrufer wird verbunden" not in b.segments(b.call_row(u)["id"], "system")
+    run(bridge, scenario)

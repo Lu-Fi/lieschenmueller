@@ -192,6 +192,25 @@ def _rule_desc(r):
             "aktion": labels.DIALRULE_ACTIONS.get(r.get("action"), r.get("action")), "ziel": r.get("target") or "", "notiz": r.get("note") or ""}
 
 
+def _forwards_to(s):
+    """Wählregeln ANDERER Einträge (z. B. Zentrale), die auf eine eigene Nummer dieser Person weiterleiten (Büro oder außer Haus).
+    Auch für Benutzer ohne Adminrechte: sie erfahren nur diese Regeln (Anrufer, Zeit, Ziel = ihre eigene Nummer), nichts sonst
+    über den anderen Eintrag. So weiß der Assistent, dass „alle Anrufe von X an mein Handy“ schon eingerichtet ist."""
+    own = {"im Büro": [x.strip() for x in str(s.get("number") or "").split(",") if x.strip()],
+           "außer Haus (Handy)": [str(s.get("away_number") or "").strip()] if str(s.get("away_number") or "").strip() else []}
+    out = []
+    for o in db.q("SELECT * FROM staff WHERE id <> ? ORDER BY name", (s["id"],)):
+        for r in db.dialrules_of(dict(o)):
+            if r.get("action") != "forward" or not r.get("target"):
+                continue
+            where = next((k for k, nums in own.items() if any(drules.same_number(r["target"], n) for n in nums)), "")
+            if where:
+                d = _rule_desc(r)
+                out.append({"bei": o["name"], "regel": r["name"], "aktiv": d["aktiv"], "anrufer": d["anrufer"], "nummern": d["nummern"],
+                            "tage": d["tage"], "zeit": d["zeit"], "an": f"deine Nummer {where}"})
+    return out[:20]
+
+
 def _agent_name(aid):
     a = db.get_agent(aid) if aid else None
     return a["name"] if a else ("–" if not aid else f"(gelöscht, {aid})")
@@ -227,6 +246,8 @@ def t_personen(user, a):
                  klingelt_im_buero=s.get("number") or "", ausser_haus=s.get("away_number") or "",
                  rufnummern=[m for m in (s.get("msn") or "").split(",") if m], ki_rueckfall=bool(s.get("ai_fallback", 1)),
                  waehlregeln=[_rule_desc(r) for r in db.dialrules_of(s)])
+        if not group:
+            e["weiterleitungen_hierher"] = _forwards_to(s)        # Regeln anderer Einträge (z. B. Zentrale), die auf diese Person weiterleiten
         out.append(e)
     return {"personen": out, "stand": db._now_local().strftime("%d.%m.%Y %H:%M")}
 
@@ -423,8 +444,9 @@ def t_rufnummern(user, a):
     from . import astconf, fritz
     if not is_admin(user):
         s = _pick_staff(user, "")
-        return {"meine_rufnummern": [m for m in (s.get("msn") or "").split(",") if m], "klingelt_im_buero": s.get("number") or "",
-                "ausser_haus": s.get("away_number") or "", "hinweis": "Rufnummern weist ein Administrator zu."}
+        return {"eigene_rufnummern_von_aussen": [m for m in (s.get("msn") or "").split(",") if m], "klingelt_im_buero": s.get("number") or "",
+                "ausser_haus": s.get("away_number") or "", "weiterleitungen_zu_dir": _forwards_to(s),
+                "hinweis": "Rufnummern weist ein Administrator zu."}
     owners = db.number_owners()
     labels_ = {n["number"]: n["name"] for n in (fritz._numbers_cache.get("v") or [])}      # nur der zwischengespeicherte Stand
     nums = list(labels_) + [d for d in owners if d not in {db._digits(x) for x in labels_}]
@@ -531,7 +553,8 @@ def _proposal(ctx, area, target, after, title, note=""):
     card = public_proposal(p)
     # dasselbe Ziel in derselben Anfrage nochmal vorgeschlagen (Modell ruft das Werkzeug doppelt): nur den neuesten zeigen
     keys = set((after or {}).keys()) if isinstance(after, dict) else None
-    for old in [c for c in ctx["proposals"] if c.get("area") == card.get("area") and c.get("target") == card.get("target")
+    for old in [c for c in ctx["proposals"] if PROPOSALS.get(c.get("token"), {}).get("area") == area
+                and PROPOSALS.get(c.get("token"), {}).get("target") == target
                 and keys is not None and set((PROPOSALS.get(c.get("token"), {}).get("after") or {}).keys()) == keys]:
         ctx["proposals"].remove(old)
         PROPOSALS.pop(old.get("token"), None)
@@ -777,9 +800,20 @@ def p_waehlregel(ctx, a):
     else:
         r_id = rid
     hit = next(x for x in clean if x["id"] == r_id)
+    note = "Wählregeln gelten für Anrufe auf die Rufnummern der Person und gehen Status und Zeitplan vor (bei „nicht stören“ nur für die Ausnahmen)."
+    if not str(s.get("msn") or "").strip() and not db.is_group(s):
+        rx = [x["name"] for x in db.q("SELECT name FROM staff WHERE TRIM(COALESCE(msn,'')) <> '' AND id <> ? ORDER BY name", (s["id"],))]
+        note = (f"Achtung: {s['name']} hat keine eigene Rufnummer von außen. Diese Regel wirkt nur, wenn ein Anruf zu {s['name']} "
+                "durchgestellt wird, nicht bei Anrufen von außen" + (f" – die kommen bei {', '.join(rx)} an; für „alle Anrufe“ gehört die "
+                "Regel dorthin." if rx else ".")) + " " + note
+    if hit.get("action") == "forward" and hit.get("callers"):
+        tgt = {"number": hit["target"], "away_number": ""}
+        dup = [f for f in _forwards_to({"id": s["id"], **tgt}) if f["aktiv"] and set(f["nummern"]) & set(hit["callers"])]
+        if dup:
+            note = ("Schon eingerichtet: " + "; ".join(f"bei {f['bei']} leitet „{f['regel']}“ {', '.join(f['nummern'])} an dieselbe Nummer weiter"
+                                                       for f in dup) + ". ") + note
     return _proposal(ctx, "dialrules", s["id"], {"rules": clean},
-                     f"{s['name']}: Wählregel „{hit['name']}“ " + ("ändern" if old else "anlegen"),
-                     "Wählregeln gelten für Anrufe auf die Rufnummern der Person und gehen Status und Zeitplan vor (bei „nicht stören“ nur für die Ausnahmen).")
+                     f"{s['name']}: Wählregel „{hit['name']}“ " + ("ändern" if old else "anlegen"), note)
 
 
 def p_mitschrift(ctx, a):
@@ -930,9 +964,11 @@ Regeln:
 4. Nie: Zugangsdaten, Passwörter, Schlüssel, Fritzbox-Zugang, Benutzerkonten oder Rollen, Löschen von Anrufen oder Benutzern, Mails versenden, Anrufe starten. Dafür gibt es keine Werkzeuge; sag freundlich, dass das in der Oberfläche (durch einen Administrator) geht.
 5. Rechte: {rights} Die Werkzeuge prüfen die Rechte; meldet eines „nicht erlaubt“, erkläre das ohne Umweg zu suchen.
 6. Erreichbarkeit: „nicht stören“ (nur Ausnahmen kommen durch) > erste passende Wählregel > Zeitplan > Status; ist die Person dann nicht erreichbar, gilt die Vertretung. Anrufregeln: die erste passende aktive Regel (kleinste Priorität zuerst) bestimmt den Agenten und die Klingelzeit; 0 s = die KI nimmt sofort an, ohne dass Telefone klingeln.
+6a. Wählregeln wirken nur auf Anrufe an die Rufnummern dieser Person bzw. dieses Sammelziels (personen_status: rufnummern). Heißt es „alle Anrufe von X sollen an Y“, lege die Regel bei dem Ziel an, auf dessen Rufnummern diese Anrufe ankommen (oft ein Sammelziel wie die Zentrale), mit Weiterleiten an Y – nicht bei Y. Hat Y keine eigene Rufnummer von außen, ist eine Regel bei Y fast wirkungslos; sag das. Kommen die Anrufe auf mehreren Zielen an, schlage die Regel für jedes vor oder frag nach.
+6b. Bevor du sagst, eine Weiterleitung fehle oder ein Administrator müsse sie einrichten: sieh in „weiterleitungen_zu_dir“ (Werkzeug rufnummern) bzw. „weiterleitungen_hierher“ (personen_status) nach. Dort stehen Wählregeln anderer Einträge (z. B. der Zentrale), die schon auf die Nummern dieser Person weiterleiten. Ist es dort schon eingerichtet, sag das klar („ist bereits eingerichtet: bei der Zentrale …“).
 7. „Warum ging der Anruf um … an die KI?“: erst anrufe_suchen (Zeitraum um die Uhrzeit), dann anruf_erklaeren, dann mit dem Ablauf begründen (wer klingelte, wie lange, Grund des Endes, welche Regel).
 8. Rufnummern, die als „…“ erscheinen, sind ausgeblendet; errate sie nicht.
-9. Zeitangaben für Werkzeuge: 'JJJJ-MM-TT HH:MM' in Ortszeit. Schreibe keine Werkzeugnamen oder JSON in die Antwort."""
+9. Zeitangaben für Werkzeuge: 'JJJJ-MM-TT HH:MM' in Ortszeit. Schreibe keine Werkzeugnamen, Feldnamen (z. B. „eigene_rufnummern_von_aussen“) oder JSON in die Antwort; sag es in normalen Worten."""
 
 
 def _history(messages):

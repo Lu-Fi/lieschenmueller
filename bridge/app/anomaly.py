@@ -6,7 +6,9 @@ Regeln (je Regel abschaltbar, Schwellen in den Einstellungen, meta anomaly_cfg):
   deaf        KI hoert nichts: KI-Gespraech > ai_s, viele Pakete empfangen, aber kein Anrufer-Segment und Ende durch Stille/KI
   ring_dead   Klingeln ohne Wirkung: dasselbe Telefon klingelte bei ring_streak Anrufen in Folge bis zum Ende (180 Ringing), nie abgenommen
   ring_short  Klingeln endete nach < short_s ohne erkennbaren Grund (nicht besetzt/abgelehnt/anderes Telefon/Anrufer legte auf)
-  fritz_log   Ereignisprotokoll der Fritzbox (nur neue Zeilen): Internettelefonie nicht erfolgreich, Neueinwahl, Anmeldung gescheitert
+  fritz_log   Ereignisprotokoll der Fritzbox (nur neue Zeilen): Internettelefonie nicht erfolgreich (gefiltert, siehe voip_class),
+              Anmeldung gescheitert
+  inet        dort zusaetzlich: Internetverbindung getrennt (Neueinwahl, Zwangstrennung); eigene Regel, damit abschaltbar
   voip_status eigene Rufnummern der Fritzbox nicht angemeldet (X_AVM-DE_GetVoIPStatus, zweimal in Folge)
   undelivered viele nicht zugestellte Anrufe (Anrufliste Typ 2/10 ohne Geraet) auf einer Rufnummer in kurzer Zeit (neutral, ohne Wertung)
   ring_lines  Klingel-Rufnummern 99NNN bzw. die Anmeldung von Asterisk an der Fritzbox fehlen. Das meldet ops/watchdog.py schon per Mail:
@@ -53,9 +55,17 @@ RULES = [
      "Telefon nahm ab, der Anrufer legte nicht auf).",
      [("short_s", "Kürzer als (s)", 3, 1, 15, "")]),
     ("fritz_log", "Ereignisprotokoll der Fritzbox",
-     "Liest regelmäßig neue Zeilen im Ereignisprotokoll: Internettelefonie nicht erfolgreich (480, 606 …), Internetverbindung "
-     "getrennt (Neueinwahl), Anmeldung einer Rufnummer gescheitert.",
-     [("log_min", "Abfrage alle (min)", 5, 1, 60, "Gilt auch für Rufnummern-Status, Anrufliste und Klingel-Rufnummern.")]),
+     "Liest regelmäßig neue Zeilen im Ereignisprotokoll. Gemeldet werden Störungen beim Anbieter (z. B. 500, 503, 408, 480 über den "
+     "Anbieter) erst, wenn sie sich häufen, abgewiesene Anmeldung beim Anbieter (401, 403, 407) sofort, gescheiterte Anmeldung einer "
+     "Rufnummer, Internetverbindung getrennt (eigene Regel „Neueinwahl“). Nicht gemeldet: normale Ausgänge eines Anrufs (besetzt, "
+     "abgelehnt, falsche Nummer, Anrufer legte auf) und Telefone im Haus (über eine lokale Adresse, auch Asterisk: Telefon aus, "
+     "„Nicht stören“).",
+     [("log_min", "Abfrage alle (min)", 5, 1, 60, "Gilt auch für Rufnummern-Status, Anrufliste und Klingel-Rufnummern."),
+      ("voip_n", "Störungen beim Anbieter: melden ab", 3, 1, 50, "So viele nicht erfolgreiche Verbindungen über den Anbieter …"),
+      ("voip_min", "… innerhalb (min)", 30, 5, 1440, "Einzelne Aussetzer beim Anbieter sind normal.")]),
+    ("inet", "Neueinwahl der Internetverbindung",
+     "Zeile im Ereignisprotokoll der Fritzbox: Internetverbindung getrennt, Zwangstrennung, DSL antwortet nicht. Bei Anschlüssen mit "
+     "täglicher Zwangstrennung ist das normal und lässt sich hier abschalten. Braucht die Regel „Ereignisprotokoll der Fritzbox“.", []),
     ("voip_status", "Rufnummer nicht angemeldet",
      "Fragt bei der Fritzbox den Status aller eigenen Rufnummern ab (zweimal in Folge nicht „registered“/„connected“).", []),
     ("undelivered", "Viele nicht zugestellte Anrufe",
@@ -368,13 +378,45 @@ def parse_log(txt):
     return out
 
 
+# normale Ausgaenge eines Anrufs, keine Stoerung: falsche Nummer, besetzt, Anrufer legte auf, abgelehnt, gibt es nicht, nicht annehmbar
+VOIP_NORMAL = {"404", "410", "484", "486", "487", "600", "603", "604", "606"}
+VOIP_AUTH = {"401", "403", "407"}                 # Anbieter weist die Anmeldung/den Anruf ab: Zugangsdaten oder Vertrag
+P_ROUTE = re.compile(r"über\s+(\S+?)(?::\d+)?\s+war\b", re.I)
+
+
+def _local_host(h):
+    import ipaddress
+    h = str(h or "").strip("[]").lower()
+    try:
+        ip = ipaddress.ip_address(h)
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    except ValueError:
+        return "." not in h or h.endswith((".box", ".local", ".lan", ".home", ".internal", ".localdomain"))
+
+
+def voip_class(text):
+    """Internettelefonie nicht erfolgreich -> (Art, Code): "normal" (Ausgang eines Anrufs), "local" (Telefon im Haus bzw. Asterisk:
+    Telefon aus, "Nicht stoeren" - nichts fuer den Anbieter), "auth" (Anbieter weist ab: sofort melden), "provider" (Stoerung beim
+    Anbieter: erst melden, wenn sie sich haeufen)."""
+    tail = text.split("Ursache", 1)[-1]
+    m = re.search(r"\b([4-6]\d\d)\b", tail) or re.search(r"\b([4-6]\d\d)\b", text)
+    code = m.group(1) if m else "?"
+    route = P_ROUTE.search(text)
+    if code in VOIP_NORMAL:
+        return "normal", code
+    if route and _local_host(route.group(1)):
+        return "local", code
+    if code in VOIP_AUTH:
+        return "auth", code
+    return "provider", code
+
+
 def classify_log(text):
-    """Zeile -> (kind, key-Teil, mail) oder None."""
+    """Zeile -> (kind, key-Teil, mail) oder None. Internettelefonie: ("voip", Art, Code) - check_log entscheidet (voip_class)."""
     if P_VOIP.search(text):
-        code = re.search(r"\b([4-6]\d\d)\b", text)
-        return "fritz_log", f"voip:{code.group(1) if code else '?'}", True
+        return ("voip",) + voip_class(text)
     if P_INET.search(text):
-        return "fritz_log", "inet", True
+        return "inet", "inet", True
     if P_REG.search(text):
         ring = re.search(r"(?<!\d)99\d{3}(?!\d)", text)
         if ring:                                  # Klingel-Rufnummer an Asterisk: das meldet der Waechter
@@ -399,18 +441,44 @@ def check_log(txt, now=None):
     if not isinstance(last, dict):                # erster Lauf: nur merken, alte Zeilen nicht melden
         db.set_meta("anom_log_last", json.dumps(newest))
         return 0
-    n = 0
+    n, c = 0, cfg()
+    try:
+        recent = [x for x in json.loads(db.get_meta("anom_voip_recent", "") or "[]") if isinstance(x, list) and len(x) == 3]
+    except ValueError:
+        recent = []
     for ts, t in lines:
         if ts < last["ts"] or (ts == last["ts"] and h(ts, t) in last.get("seen", [])):
             continue
         cl = classify_log(t)
         if not cl:
             continue
-        kind, part, mail = cl
         stamp = datetime.fromtimestamp(ts).strftime("%d.%m. %H:%M")
+        if cl[0] == "voip":
+            _, art, code = cl
+            if art in ("normal", "local"):
+                continue
+            if art == "auth":
+                record("fritz_log", f"fritzlog:voip:{code}:{_day(ts)}", f"Fritzbox {stamp}: Anbieter weist ab ({code}) – {mask_text(t)}", ts=ts)
+                n += 1
+                continue
+            route = P_ROUTE.search(t)
+            recent = [x for x in recent if ts - x[0] <= c["voip_min"] * 60] + [[ts, code, route.group(1) if route else "?"]]
+            if len(recent) >= c["voip_n"]:
+                codes = ", ".join(sorted({x[1] for x in recent}))
+                hosts = ", ".join(sorted({x[2] for x in recent}))
+                record("fritz_log", f"fritzlog:voipburst:{_day(ts)}",
+                       f"Fritzbox {stamp}: {len(recent)} nicht erfolgreiche Verbindungen über den Anbieter in {c['voip_min']} min "
+                       f"(Ursache {codes}; über {hosts}) – Störung beim Anbieter? Letzte: {mask_text(t)}", ts=ts)
+                recent = []
+                n += 1
+            continue
+        kind, part, mail = cl
+        if kind == "inet" and not c.get("inet"):
+            continue
         what = {"inet": "Internetverbindung getrennt (Neueinwahl)"}.get(part, "")
         record(kind, f"fritzlog:{part}:{_day(ts)}", f"Fritzbox {stamp}: {what + ' – ' if what else ''}{mask_text(t)}", mail=mail, ts=ts)
         n += 1
+    db.set_meta("anom_voip_recent", json.dumps(recent[-50:]))
     if top > last["ts"]:
         db.set_meta("anom_log_last", json.dumps(newest))
     elif top == last["ts"]:

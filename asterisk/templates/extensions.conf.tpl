@@ -59,7 +59,7 @@ exten => _.,1,NoOp(Anruf von ${CALLERID(num)} an ${EXTEN})
  same => n,Set(DT=${RES:5})
  same => n,Gosub(build-targets,s,1(${CUT(DT,:,1)}))
  same => n,Set(DMOH=${CUT(DT,:,2)})
- same => n,Dial(${TGT},60,${IF($["${DMOH}" = ""]?:m(${DMOH}))}b(lm-pre^s^1(${CALLUUID})))
+ same => n,Dial(${TGT},60,${IF($["${DMOH}" = ""]?:m(${DMOH}))}b(lm-pre^s^1(${CALLUUID}))${IF($["${VC}" = "1"]?U(vc-ans^${CALLUUID}))})
  same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?dend)
  ; Ziel besetzt/nicht erreichbar/niemand nimmt ab: zurueck zur KI (sagt es dem Anrufer, bietet eine Nachricht an)
  same => n,Set(RES=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/busy?k=@INTERNAL_KEY@&uuid=${CALLUUID}&status=${DIALSTATUS})})
@@ -171,7 +171,11 @@ exten => _.,1,NoOp(Anruf von ${CALLERID(num)} an ${EXTEN})
 ; Laeuft erst, wenn die Gegenseite abgehoben hat.
 [outbound-ai]
 exten => s,1,NoOp(ausgehend ${CALLUUID})
- same => n,AudioSocket(${CALLUUID},127.0.0.1:9092)
+ ; Sprachbefehl "assistent" (VC=1): Home Assistant erfaehrt Abheben und Auflegen; der Kanal dient zum Auflegen per API
+ same => n,GotoIf($["${VC}" != "1"]?ai)
+ same => n,Set(CHANNEL(hangup_handler_push)=vc-end,s,1(${CALLUUID}))
+ same => n,Set(RES=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/vc-event?k=@INTERNAL_KEY@&uuid=${CALLUUID}&ev=ki&chan=${URIENCODE(${CHANNEL})})})
+ same => n(ai),AudioSocket(${CALLUUID},127.0.0.1:9092)
  same => n,Set(RES=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/after?k=@INTERNAL_KEY@&uuid=${CALLUUID})})
  ; Durchstellen (dial:, sdial:, rec:) wie bei eingehenden Anrufen: mehrere Ziele, Wartemusik, Rueckfrage, Mitschrift, bei Besetzt zurueck zur KI
  same => n,GotoIf($["${RES:0:5}" = "dial:" | "${RES:0:6}" = "sdial:" | "${RES:0:4}" = "rec:"]?from-fritz,outai,afterai)
@@ -189,6 +193,40 @@ exten => s,1,NoOp(Mitschrift ${CALLUUID} -> ${TARGET})
  same => n,Hangup()
 exten => h,1,Set(RES=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/rec-done?k=@INTERNAL_KEY@&uuid=${CALLUUID})})
  same => n,Hangup()
+
+; Sprachbefehl "verbinden" (Home Assistant, /api/voice/connect): erst klingelt das Geraet, nach dem Abheben waehlt Asterisk
+; das Ziel (TARGET "n1+n2", von der Bridge geprueft). Keine KI, keine Aufzeichnung.
+[vc-connect]
+exten => s,1,NoOp(Sprachbefehl ${CALLUUID} -> ${TARGET})
+ same => n,Set(RES=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/vc-event?k=@INTERNAL_KEY@&uuid=${CALLUUID}&ev=up&chan=${URIENCODE(${CHANNEL})})})
+ same => n,Gosub(build-targets,s,1(${TARGET}))
+ same => n,Dial(${TGT},60,U(vc-ans^${CALLUUID}))
+ same => n,Hangup()
+exten => h,1,Set(RES=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/vc-event?k=@INTERNAL_KEY@&uuid=${CALLUUID}&ev=end&st=${DIALSTATUS})})
+ same => n,Hangup()
+
+; Sprachbefehl mit mehreren Telefonen (Bridge: Originate an Local/610-611@vc-ring/n, __VCUUID geerbt): alle klingeln gleichzeitig,
+; wer zuerst abhebt, bekommt das Gespraech; die andere Seite des Hilfskanals laeuft dann in [vc-connect] bzw. [outbound-ai] weiter.
+[vc-ring]
+exten => _X.,1,Set(D=**${STRREPLACE(EXTEN,-,+**)})
+ same => n,Gosub(build-targets,s,1(${D},ring))
+ same => n,Dial(${TGT},40,U(vc-who^${VCUUID}))
+ same => n,Hangup()
+
+; Welches Telefon hat abgehoben (Dial-Option U auf dem Kanal des Telefons): Endpunkt (99NNN) bzw. SIP-Adresse an die Bridge
+[vc-who]
+exten => s,1,Set(RES2=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/vc-event?k=@INTERNAL_KEY@&uuid=${ARG1}&ev=who&ep=${URIENCODE(${CHANNEL(endpoint)})}&uri=${URIENCODE(${CHANNEL(pjsip,remote_uri)})})})
+ same => n,Return()
+
+; Sprachbefehl: Ziel hat abgenommen (Dial-Option U, laeuft auf dem Kanal des Ziels; ARG1 = Anruf-UUID)
+[vc-ans]
+exten => s,1,Set(RES2=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/vc-event?k=@INTERNAL_KEY@&uuid=${ARG1}&ev=conn)})
+ same => n,Return()
+
+; Sprachbefehl "assistent": Auflegen (Hangup-Handler des Telefon-Kanals), DIALSTATUS des letzten Durchstellens
+[vc-end]
+exten => s,1,Set(RES2=${CURL(http://127.0.0.1:${BRIDGE_PORT}/internal/vc-event?k=@INTERNAL_KEY@&uuid=${ARG1}&ev=end&st=${DIALSTATUS})})
+ same => n,Return()
 
 ; Ziele "n1+n2+..." (aus der Bridge, nur geprueft Ziffern/**NNN) in eine Dial-Liste umwandeln -> Variable TGT
 [build-targets]

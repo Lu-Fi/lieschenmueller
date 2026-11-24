@@ -276,6 +276,7 @@ class Call:
         self.asked = False
         self.last_audio_in = 0.0
         self.drop_agent_output = False
+        self.handover_said, self.handover_t = False, 0.0   # Verbinden durch die KI: Ansage erwartet seit handover_t (_handover)
         self.agent_bye = False                # letzter vollstaendiger Redebeitrag der KI war eine Verabschiedung
         self.bye_heard = ""                   # was der Anrufer unmittelbar danach gesagt hat (eine Aeusserung, ggf. in Fragmenten)
         self._bye_task = None                 # wartet die Pause nach der Verabschiedung des Anrufers ab, dann auflegen
@@ -335,6 +336,10 @@ class Call:
         if speaker in ("caller", "agent"):
             self.history.append(f"{'Anrufer' if speaker == 'caller' else 'KI'}: {text}")
             del self.history[:-30]
+        if speaker in ("caller", "agent") and self.meta.get("voice"):
+            from . import voicecmd
+            if voicecmd.nolog():           # Sprachbefehl: Gespraech mit der KI nicht mitschreiben (Verlauf fuer die KI bleibt)
+                return
         who = self.agent["name"] if speaker == "agent" else ""
         db.add_segment(self.meta["call_id"], speaker, text, who)
         hub.publish({"type": "segment", "call_id": self.meta["call_id"],
@@ -494,9 +499,11 @@ class Call:
         """Der Anrufer erfaehrt immer, dass er verbunden wird: spricht die KI es nicht selbst (guard), kommt eine feste Ansage."""
         t0 = time.monotonic()
         if not force and self.said_this_turn():
-            self.begin_hangup()            # die KI hat es vor dem Verbinden schon gesagt: keine zweite Ansage
+            self.drop_agent_output = True  # die KI hat es vor dem Verbinden schon gesagt: keine zweite Ansage, nichts mehr anhaengen
+            self.begin_hangup()
             return
         if not force:
+            self.handover_t, self.handover_said = t0, True      # kuendigt die KI es selbst an: danach nichts mehr ausgeben
             for _ in range(60):
                 if self.last_agent_text_t > t0 or not self.alive:
                     break
@@ -936,6 +943,27 @@ class Call:
                 "Duze die Person durchgehend und sprich sie mit dem Vornamen an. Sprich Rufnummern in Zifferngruppen. "
                 "Stelle keine Vermutungen ueber Gesundheit oder Alkohol an.")
 
+    def voice_prompt(self):
+        v = self.meta.get("voice") or {}
+        first, dev = v.get("first") or "", v.get("device") or ""
+        if "+" in dev:                      # mehrere Telefone klingelten: Anrede nach dem, das abgehoben hat (wenn eindeutig)
+            from . import voicecmd
+            st = voicecmd.by_uuid(self.meta.get("uuid") or "")
+            if st and st.get("answered"):
+                dev = st["answered"]
+                o = voicecmd.owner(dev)
+                first = ((o or {}).get("name") or "").split(" ")[0]
+        return ("SPRACHBEFEHL: Jemand im Haus hat per Sprachbefehl (z. B. ueber Alexa) darum gebeten, dass du anrufst, und hat am Telefon "
+                f"{dev} abgenommen{(' (vermutlich ' + first + ')') if first else ''}. Er moechte mit jemandem verbunden werden.\n"
+                "ABLAUF: Melde dich sofort und ganz kurz, ohne dich lange vorzustellen, z. B. "
+                f"'Hallo{(' ' + first) if first else ''}, mit wem soll ich dich verbinden?'. Duze die Person. Nennt sie einen Namen, rufe "
+                "connect_contact(name, mitschrift=false) auf; frage nur dann nach Aufzeichnung, wenn sie selbst davon spricht "
+                "(dann mitschrift=true). Bei mehreren Treffern frage kurz nach, welcher gemeint ist. Findet sich niemand, sage das und frage "
+                "nach dem genauen Namen. Sage beim Verbinden nur kurz, mit wem du verbindest, mit dem Namen aus der Antwort von connect_contact, z. B. 'Ich verbinde dich mit Max, Handy.' (ohne Nummer). "
+                "Moechte die Person doch niemanden sprechen, verabschiede dich kurz und rufe end_call auf.\n"
+                "REGELN: Nur Kontakte aus dem Telefonbuch und Mitarbeiter, keine beliebigen Nummern. Nenne keine Telefonnummern. "
+                "Kein save_result, keine Werkzeugnamen aussprechen.")
+
     def caller_name(self):
         return self.caller_ident()[0]
 
@@ -1049,6 +1077,9 @@ class Call:
             parts.append("VOR DEM VERBINDEN: Wuenscht der Anrufer einen Mitarbeiter, frage zuerst freundlich nach seinem Namen und worum es geht "
                          "(falls er es nicht schon gesagt hat), und rufe erst danach connect_employee mit dem Namen und dem Anliegen auf. "
                          "Sage dabei, dass du kurz nachfragst, ob die Person Zeit hat.")
+        if self.meta.get("voice"):
+            parts.append(self.voice_prompt())
+            return "\n\n".join(parts)
         if self.meta.get("direction") == "out":
             who = self.meta.get("contact") or self.meta.get("to")
             parts.append(
@@ -1195,6 +1226,8 @@ class Call:
 
     def may_dial(self):
         """Nur freigegebene Anrufernummern (Agent-Feld) duerfen die KI waehlen lassen (Schutz vor Missbrauch)."""
+        if self.meta.get("voice"):        # Sprachbefehl: die KI ruft ein Telefon im Haus an, um auf Wunsch zu verbinden
+            return True
         if self.meta.get("direction") == "out":
             return False
         # Mitarbeiter: vom eigenen internen Anschluss (z. B. **610) oder nach Freischaltung per Rufnummer + Codewort
@@ -1281,7 +1314,7 @@ class Call:
                     "nachricht": types.Schema(type="STRING", description="Nachricht inkl. Rueckrufnummer/Name des Anrufers")})))
         decls.append(_decl("stop_recording", "Beendet und verwirft die Aufnahme, wenn der Anrufer "
                                               "der Aufzeichnung widerspricht."))
-        if self.meta.get("direction") == "out":
+        if self.meta.get("direction") == "out" and not self.meta.get("voice"):
             decls.append(types.FunctionDeclaration(
                 name="save_result", description="Speichert das Ergebnis des Anrufs (z. B. vereinbarter Termin).",
                 parameters=types.Schema(type="OBJECT", required=["ergebnis", "zusammenfassung"], properties={
@@ -1419,6 +1452,11 @@ class Call:
                                     await asyncio.sleep(0.2)
                                 greet = ("[Systemhinweis: Die angerufene Person hat abgenommen. Beginne das Gespraech jetzt selbst und warte nicht auf sie: "
                                          "Stelle dich kurz als KI-Telefonassistent vor, nenne den Auftraggeber und den Anlass.]")
+                                if self.meta.get("voice"):
+                                    asked = self._asked_name() if self.meta.get("retry") else ""
+                                    greet = (f"[Systemhinweis: {asked or 'Der gewuenschte Gespraechspartner'} ist gerade nicht erreichbar. Sage das kurz, ohne "
+                                             "dich neu vorzustellen, und frage, ob du jemand anderen verbinden sollst.]") if self.meta.get("retry") else (
+                                             "[Systemhinweis: Die Person hat abgenommen. Frage jetzt sofort und kurz, mit wem du sie verbinden sollst.]")
                                 if self.meta.get("screen"):
                                     greet = ("[Systemhinweis: Jemand hat abgenommen. Hoere kurz hin: Ist es eine Mailbox oder ein Anrufbeantworter, rufe sofort "
                                              "voicemail() auf. Ist es ein Mensch, beginne jetzt selbst und stelle deine Frage nach Ablauf Punkt 2.]")
@@ -1551,7 +1589,7 @@ class Call:
             wants_mobile = any(w in db._FILLER for w in db._norm(q))
             sid = None
             if len(staff) == 1:               # Mitarbeiter: Status und Nummern wie bei connect_employee
-                if not (self.remote or remote.staff_internal(self.meta.get("from"))) and not self.connect_allowed():
+                if not (self.remote or self.meta.get("voice") or remote.staff_internal(self.meta.get("from"))) and not self.connect_allowed():
                     return {"fehler": "Verbinden mit Mitarbeitern ist bei diesem Agenten gerade nicht erlaubt. Nimm mit note_message eine Nachricht auf."}
                 m = staff[0]
                 sid = m["id"]
@@ -1768,6 +1806,10 @@ class Call:
                 if sc.turn_complete:
                     self.flush_tail()
                     self.flush_say()
+                    if self.handover_said and self.last_agent_text_t > self.handover_t:
+                        # Verbindungsansage der KI ist fertig: bis zum Auflegen still (sonst haengt sie noch Saetze an,
+                        # Testanruf 23.11.: "It looks like we're waiting for the connection.")
+                        self.drop_agent_output = True
                     # Rueckfrage: die Frage gilt erst als gestellt, wenn die KI einen Redebeitrag ohne Unterbrechung beendet hat, der eine
                     # Frage enthaelt ("?") oder lang genug ist. Sonst zaehlte ein "Ja?" beim Abheben, das die Begruessung unterbricht, als Zustimmung,
                     # bevor die Person weiss, wer wartet (Testanruf 16.11.: Durchgestellt nach "Hallo Ludwig, hier").

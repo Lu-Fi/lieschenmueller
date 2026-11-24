@@ -910,18 +910,21 @@ const syncHash=(replace)=>{const x=hashFor();if(location.hash!==x)history[replac
 async function agentsView(keep){
  if(!keep&&sel){sel=null;syncHash(true)}
  agents=await api("/api/agents");
- const rl=await api("/api/rules").catch(()=>({call:[],rec:[]}));
+ const [rl,vc]=await Promise.all([api("/api/rules").catch(()=>({call:[],rec:[]})),api("/api/voice/settings").catch(()=>null)]);
  if(!modelInfo)modelInfo=await api("/api/models");
+ // Agent fuer Sprachbefehle (Home Assistant): eingestellt oder der erste aktive Assistent (wie voicecmd.agent)
+ const vcId=vc&&vc.on?(agents.find(a=>a.id===vc.agent_id&&a.enabled&&a.mode==="assist")||agents.find(a=>a.enabled&&a.mode==="assist")||{}).id:0;
  const modes={assist:"Assistent",monitor:"Monitor",transfer:"Durchstellen"};
  const nCall=id=>rl.call.filter(r=>r.agent_id===id).length,nRec=id=>rl.rec.filter(r=>r.agent_id===id).length;
  $("#m").innerHTML=`<div class=head><div><h2><svg class=ic><use href="#i-agents"/></svg>Agenten</h2><p class=sub style="margin:0">Ein Agent ist eine KI-Persönlichkeit (Auftrag, Stimme, Modell). Wer wann welchen Agenten bekommt, legst du unter <a href="#/rules" onclick="tab='rules';sel=null;render();return false">Regeln</a> fest.</p></div><button class=p onclick="edit(null)">+ Neuer Agent</button></div><div id=ed></div>
  <div class=grid id=alist>`+agents.map(a=>
- `<div class="acard ${a.enabled?"":"off"}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><h3>${esc(a.name)}</h3><label class=sw title="${a.enabled?"Agent ist aktiv – zum Deaktivieren klicken":"Agent ist aus – zum Aktivieren klicken"}"><input type=checkbox ${a.enabled?"checked":""} onchange="toggleAgent(${a.id},this.checked)"><span class=swt></span><span class=swl>${a.enabled?"Aktiv":"Aus"}</span></label></div>
-  <div class=chips>${badge(modes[a.mode]||a.mode,a.mode==="transfer"?"info":a.mode==="monitor"?"warn":"neu")}${a.notice_on&&a.mode==="assist"?badge("Hinweis-Ansage","info"):a.mode==="assist"?badge("ohne Hinweis","warn"):""}${nCall(a.id)?badge(nCall(a.id)+" Anrufregel"+(nCall(a.id)>1?"n":""),"ok"):badge("keine Anrufregel","neu")}${nRec(a.id)?badge(nRec(a.id)+" Aufzeichnungsregel"+(nRec(a.id)>1?"n":""),"info"):""}</div>
+ `<div class="acard ${a.enabled?"":"off"}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><h3>${(a.name?esc(a.name):"<i class=mut>(ohne Namen)</i>")}</h3><label class=sw title="${a.enabled?"Agent ist aktiv – zum Deaktivieren klicken":"Agent ist aus – zum Aktivieren klicken"}"><input type=checkbox ${a.enabled?"checked":""} onchange="toggleAgent(${a.id},this.checked)"><span class=swt></span><span class=swl>${a.enabled?"Aktiv":"Aus"}</span></label></div>
+  <div class=chips>${badge(modes[a.mode]||a.mode,a.mode==="transfer"?"info":a.mode==="monitor"?"warn":"neu")}${a.notice_on&&a.mode==="assist"?badge("Hinweis-Ansage","info"):a.mode==="assist"?badge("ohne Hinweis","warn"):""}${nCall(a.id)?badge(nCall(a.id)+" Anrufregel"+(nCall(a.id)>1?"n":""),"ok"):badge("keine Anrufregel","neu")}${nRec(a.id)?badge(nRec(a.id)+" Aufzeichnungsregel"+(nRec(a.id)>1?"n":""),"info"):""}${a.id===vcId?badge("Sprachbefehle","info"):""}</div>
   <div class=kv>
    <span>Codewörter</span><span>${esc(a.keywords)||"–"}${a.keywords&&a.keyword_count>1?`<span class=sub2>erst bei ${a.keyword_count} verschiedenen</span>`:""}${a.mood_trigger?`<span class=sub2>Stimmung: ${esc(a.mood_trigger.split(",").map(x=>{const [n,s]=x.split(":");return n.replace("aergerlich","ärgerlich").replace("aengstlich","ängstlich")+" ab "+(s||a.mood_min)}).join(", "))} (${a.trigger_mode==="all"?"UND":"ODER"})</span>`:""}</span>
    ${a.mode==="transfer"?`<span>Durchstellen an</span><span>${esc(a.transfer_to)}</span>`:`<span>Stimme</span><span>${esc(a.voice)}</span>`}
    <span>Modell</span><span>${esc((modelInfo?.models.find(m=>m.id===a.model)||{}).label||"Standard")}</span>
+   <span>Reihenfolge</span><span>${esc(a.priority)}<span class=sub2>beim Wechsel mitten im Gespräch (Codewörter, Stimmung): kleinere Zahl zuerst. Wer einen Anruf annimmt, legen die Anrufregeln fest.</span></span>
   </div>
   <div class=act><button class=s onclick="edit(${a.id})">Bearbeiten</button><button class=s style="margin-left:auto" onclick="tab='rules';sel=null;render()">Regeln</button></div></div>`).join("")+`</div>`;
 }
@@ -1288,7 +1291,9 @@ async function save(id){
  const d={name:g("name"),priority:+g("priority"),match_called:g("match_called"),match_caller:g("match_caller"),keywords:g("keywords"),keyword_count:Math.max(1,+g("keyword_count")||1),keyword_only:$("#f_keyword_only").checked?1:0,mood_on:$("#f_mood_on").checked?1:0,mood_text:$("#f_mood_text").checked?1:0,meta_detail:$("#f_meta_detail").checked?1:0,meta_on:$("#f_meta_on").checked?1:0,mood_trigger:[...document.querySelectorAll(".f_ms")].filter(e=>+e.value>0).map(e=>e.id.slice(5)+":"+e.value).join(","),mood_min:+g("mood_min")||4,trigger_mode:g("trigger_mode"),prompt:g("prompt"),greeting:g("greeting"),voice:g("voice"),mode:g("mode"),transfer_to:g("transfer_to"),ring_fallback:$("#f_ring_fallback").checked?1:0,questions:g("questions"),silence_ask:+g("silence_ask"),silence_hangup:+g("silence_hangup"),limit_calls_h:+g("limit_calls_h")||0,limit_min_day:+g("limit_min_day")||0,max_call_s:+g("max_call_s")||0,tools:JSON.stringify(tools.filter(t=>t.name)),dial_callers:g("dial_callers").trim(),schedule:g("schedule"),answer_delay:+g("answer_delay")||0,notice_on:$("#f_notice_on").checked?1:0,use_base:$("#f_use_base").checked?1:0,allow_connect:+$("#f_allow_connect").value,ask_before:$("#f_ask_before").checked?1:0,notice:g("notice").trim(),model:g("model"),thinking_level:g("thinking_level"),speech_pace:g("speech_pace"),speech_style:g("speech_style"),enabled:edEnabled};
  const r=await fetch(id?"/api/agents/"+id:"/api/agents",{method:id?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(d)});
  if(!r.ok){const e=await r.json().catch(()=>({}));return toast(e.detail||"Speichern fehlgeschlagen")}
- render();
+ // neuer Agent: danach diesen Agenten weiter bearbeiten (nicht wieder ein leeres Formular, sonst legt das naechste Speichern einen weiteren an)
+ if(!id){const j=await r.json().catch(()=>({}));if(j.id){sel=j.id;syncHash(true)}}
+ toast("Gespeichert.");render();
 }
 async function del(id){if(id&&await askConfirm("Agent wirklich löschen?")){await fetch("/api/agents/"+id,{method:"DELETE"});render()}}
 /* ---------- Kontakte ---------- */
@@ -1299,15 +1304,15 @@ async function contactsView(){
  const last=info.last?new Date(info.last*1000).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"noch nie";
  $("#m").innerHTML=`<div class=head><div><h2><svg class=ic><use href="#i-contacts"/></svg>Kontakte</h2><p class=sub style="margin:0">Bekannte Nummern. Die KI bekommt die echte Anrufernummer und prüft damit Angaben wie „Ich bin Petra“.</p></div>
  <div style="text-align:right"><button class=s id=imp onclick="syncFritz()" ${info.configured?"":"disabled title='FRITZ_TR064_USER/PASSWORD in .env fehlen'"}>↻ Mit Fritzbox abgleichen</button><div class=hint id=impmsg>Letzter Abgleich: ${last}</div></div></div>
- <div class="panel pad" style="padding:12px 16px;margin-bottom:14px"><input id=c_search placeholder="Suchen nach Name, Nummer oder Notiz …" oninput="contactShow=50;clearTimeout(contactTimer);contactTimer=setTimeout(drawContacts,150)"></div>
+ <div class="panel pad" style="padding:12px 16px;margin-bottom:14px"><input id=c_search placeholder="Suchen nach Name, weiterem Namen, Nummer oder Notiz …" oninput="contactShow=50;clearTimeout(contactTimer);contactTimer=setTimeout(drawContacts,150)"></div>
  <div class="notice">🔒 <b>Aus der Fritzbox importiert</b> – diese Kontakte sind schreibgeschützt. Bitte im Telefonbuch der Fritzbox ändern oder löschen und danach auf <b>Mit Fritzbox abgleichen</b> klicken.</div>
  <div class=panel><table id=ctab></table></div>`;
  drawContacts();
 }
 function drawContacts(){
  const q=($("#c_search")?.value||"").trim().toLowerCase(),qd=q.replace(/\D/g,"");
- const f=contactList.filter(x=>!q||x.name.toLowerCase().includes(q)||(x.note||"").toLowerCase().includes(q)||x.number.toLowerCase().includes(q)||(qd&&x.number.replace(/\D/g,"").includes(qd)));
- const rows=f.slice(0,contactShow).map(x=>`<tr><td><b>${esc(x.name)}</b></td><td class=num>${esc(x.number)}</td><td><select aria-label="Anrede ${esc(x.name)}" style="width:auto;padding:4px 6px" onchange="contactSal(${x.id},this.value)">${SALS.map(v=>`<option value="${v}" ${(x.salutation||"")===v?"selected":""}>${v||"–"}</option>`).join("")}</select></td><td>${x.source==="fritz"?badge("Fritzbox","info"):badge("Manuell","neu")} <span class=mut>${esc(x.note)}</span></td><td style="text-align:right;white-space:nowrap"><button class=s onclick="startOut(${x.id})" title="Assistenten anrufen lassen">☎ Anrufen</button> ${x.source==="fritz"?`<span class=hint title="Im Fritzbox-Telefonbuch ändern">🔒</span>`:`<button class=d onclick="delContact(${x.id})">Löschen</button>`}</td></tr>`).join("");
+ const f=contactList.filter(x=>!q||x.name.toLowerCase().includes(q)||(x.aliases||"").toLowerCase().includes(q)||(x.note||"").toLowerCase().includes(q)||x.number.toLowerCase().includes(q)||(qd&&x.number.replace(/\D/g,"").includes(qd)));
+ const rows=f.slice(0,contactShow).map(x=>`<tr><td><b>${esc(x.name)}</b><input aria-label="Weitere Namen ${esc(x.name)}" title="Weitere Namen, unter denen die KI den Kontakt findet, mit ; getrennt" placeholder="auch genannt …" value="${esc(x.aliases||"")}" style="display:block;margin-top:4px;padding:3px 6px;font-size:12px" onchange="contactAlias(${x.id},this)"></td><td class=num>${esc(x.number)}</td><td><select aria-label="Anrede ${esc(x.name)}" style="width:auto;padding:4px 6px" onchange="contactSal(${x.id},this.value)">${SALS.map(v=>`<option value="${v}" ${(x.salutation||"")===v?"selected":""}>${v||"–"}</option>`).join("")}</select></td><td>${x.source==="fritz"?badge("Fritzbox","info"):badge("Manuell","neu")} <span class=mut>${esc(x.note)}</span></td><td style="text-align:right;white-space:nowrap"><button class=s onclick="startOut(${x.id})" title="Assistenten anrufen lassen">☎ Anrufen</button> ${x.source==="fritz"?`<span class=hint title="Im Fritzbox-Telefonbuch ändern">🔒</span>`:`<button class=d onclick="delContact(${x.id})">Löschen</button>`}</td></tr>`).join("");
  $("#ctab").innerHTML=`<tr><th>Name</th><th>Nummer</th><th title="Für die Begrüßung mit Herr/Frau (Platzhalter {anrede})">Anrede</th><th>Quelle</th><th></th></tr>`+
   `<tr><td><input id=c_name placeholder="Neuer Kontakt: Name"></td><td><input id=c_number placeholder="Nummer"></td><td><select id=c_sal aria-label="Anrede" style="width:auto">${SALS.map(v=>`<option value="${v}">${v||"–"}</option>`).join("")}</select></td><td><input id=c_note placeholder="Notiz (optional)"></td><td style="text-align:right"><button class=p onclick="addContact()">Hinzufügen</button></td></tr>`+
   (rows||`<tr><td colspan=5 class=empty>Keine Treffer.</td></tr>`)+
@@ -1323,6 +1328,7 @@ async function syncFritz(){
 async function addContact(){const n=$("#c_name").value.trim(),z=$("#c_number").value.trim();if(!n||!z)return;const r=await post("/api/contacts",{name:n,number:z,note:$("#c_note").value,salutation:$("#c_sal").value});if(!r.ok)return toast("Kontakt konnte nicht gespeichert werden");contactTs=0;contactsView()}
 const SALS=["","Herr","Frau"];
 async function contactSal(id,v){const r=await fetch(`/api/contacts/${id}/salutation`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({salutation:v})});if(!r.ok)return toast(await errText(r,"Anrede konnte nicht gespeichert werden"));const c=contactList.find(x=>x.id===id);if(c)c.salutation=v;toast("Anrede gespeichert.")}
+async function contactAlias(id,el){const r=await fetch(`/api/contacts/${id}/aliases`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({aliases:el.value})});if(!r.ok)return toast(await errText(r,"Weitere Namen konnten nicht gespeichert werden"));const j=await r.json();el.value=j.aliases;const c=contactList.find(x=>x.id===id);if(c)c.aliases=j.aliases;toast("Weitere Namen gespeichert.")}
 async function delContact(id){await fetch("/api/contacts/"+id,{method:"DELETE"});contactTs=0;contactsView()}
 /* ---------- Benachrichtigungen (E-Mail) ---------- */
 let mailData=null,mailNums=[];
@@ -1425,6 +1431,60 @@ async function anomView(){
 function anomRules(){window._sg="Diagnose";try{localStorage.setItem("setgrp","Diagnose")}catch(e){}tab="settings";sel=null;render()}
 async function anomAck(id){await post(`/api/anomalies/${id}/ack`);anomView()}
 async function anomAckAll(){if(!await askConfirm("Alle offenen Auffälligkeiten als gesehen markieren?"))return;await post("/api/anomalies/ack-all");anomView()}
+async function vcSettings(newKey){
+ const box=$("#vcset");if(!box)return;
+ const [v,ags]=await Promise.all([api("/api/voice/settings"),api("/api/agents")]);
+ const base=location.origin;
+ const opts=ags.filter(a=>a.mode==="assist").map(a=>`<option value="${a.id}" ${a.id===v.agent_id?"selected":""}>${esc(a.name)}${a.enabled?"":" (aus)"}</option>`).join("");
+ box.innerHTML=`<div class="panel pad scard"><div class=sec>Sprachbefehle (Home Assistant, Alexa)</div>
+  <p class=hint style="margin-top:0">Home Assistant (oder ein anderes System) kann über zwei Adressen ein Gespräch starten. Beide beginnen an einem Telefon im Haus, das zuerst klingelt.<br>
+  <b>Verbinden:</b> nach dem Abheben wählt Lieschen das Ziel, eine Nummer, einen Kontakt aus dem Telefonbuch oder einen Benutzer, ohne KI.<br>
+  <b>Assistent:</b> nach dem Abheben meldet sich die KI, fragt, mit wem sie verbinden soll, und verbindet. Das kostet KI-Minuten wie ein normaler Anruf.</p>
+  <label class=sw style="margin:8px 0"><input type=checkbox id=vc_on ${v.on?"checked":""}><span class=swt></span> Sprachbefehle annehmen</label>
+  <label class=sw style="margin:8px 0"><input type=checkbox id=vc_nolog ${v.nolog?"checked":""}><span class=swt></span> Gespräch mit der KI nicht mitschreiben <span class=hint style="font-weight:400">(Assistent: im Anrufprotokoll stehen dann nur Systemzeilen wie „Verbinde mit …“)</span></label>
+  <div class=row><div><label>Agent für „Assistent“</label><select id=vc_agent><option value=0 ${v.agent_id?"":"selected"}>erster aktiver Assistent</option>${opts}</select></div>
+  <div><label>Erlaubte Telefone <span class=hint style="font-weight:400">(leer = alle internen, z. B. **610, **611)</span></label><input id=vc_dev value="${esc(v.devices)}" placeholder="**610, **611"></div></div>
+  <div><label>Gerätenamen <span class=hint style="font-weight:400">(für Home Assistant und Alexa, je Eintrag Name=**NNN, mit ; getrennt; mehrere Telefone mit +, dann klingeln alle und wer abhebt, wird verbunden)</span></label><input id=vc_names value="${esc(v.names||"")}" placeholder="Headset 1=**610; Haus=**610+**611"></div>
+  <label>Schlüssel</label>
+  <div class=hint>${v.key_set?"Gesetzt ("+esc(v.key_hint)+"). Ein neuer Schlüssel ersetzt den alten.":"Noch kein Schlüssel. Ohne Schlüssel ist die Schnittstelle aus."}</div>
+  ${newKey?`<div class=hint style="margin:6px 0"><b>Neuer Schlüssel, nur jetzt sichtbar:</b> <input readonly value="${esc(newKey)}" onclick="this.select()" style="font-family:monospace"></div>`:""}
+  <div class=actions><button class=p onclick="vcSave()">Speichern</button><button class=s onclick="vcKey()">${v.key_set?"Neuen Schlüssel erzeugen":"Schlüssel erzeugen"}</button>${v.key_set?`<button class=s onclick="vcKeyDel()">Schlüssel löschen</button>`:""}<span id=vc_msg class=hint style="align-self:center"></span></div>
+  <details style="margin-top:10px" open><summary>Home Assistant: Integration „Lieschen“ (empfohlen)</summary>
+  <div class=hint>1. Im Terminal von Home Assistant (Add-on „Terminal &amp; SSH“) einspielen, dann Home Assistant neu starten:<br>
+  <code>curl -s ${esc(base)}/ha/lieschen.tar.gz | tar xz -C /config</code><br>
+  2. Einstellungen &gt; Geräte &amp; Dienste &gt; Integration hinzufügen &gt; „Lieschen Telefonassistent“: Adresse <code>${esc(base)}</code> und Schlüssel.<br>
+  3. In den Optionen der Integration Schalter anlegen, je Zeile <code>Name | Gerät | Ziel</code>, Ziel <code>KI</code> = die KI meldet sich und verbindet auf Wunsch.
+  Der Schalter ist an, solange das Gespräch läuft; aus = auflegen. Dazu ein Sensor „Anruf“ (klingelt, abgenommen, KI spricht, verbunden, beendet, nicht erreicht mit Grund),
+  das Ereignis <code>lieschen_call</code> und die Aktionen <code>lieschen.verbinden</code>, <code>lieschen.assistent</code>, <code>lieschen.auflegen</code>.</div></details>
+  <details style="margin-top:10px"><summary>Ohne Integration: rest_command (configuration.yaml)</summary><pre style="white-space:pre-wrap;font-size:12px">rest_command:
+  lieschen_verbinden:
+    url: "${esc(base)}/api/voice/connect"
+    method: POST
+    headers:
+      Authorization: !secret lieschen_auth
+    content_type: "application/json"
+    payload: '{"device": "{{ device }}", "target": "{{ target }}"}'
+  lieschen_assistent:
+    url: "${esc(base)}/api/voice/assistant"
+    method: POST
+    headers:
+      Authorization: !secret lieschen_auth
+    content_type: "application/json"
+    payload: '{"device": "{{ device }}"}'</pre>
+  <div class=hint>In secrets.yaml: <code>lieschen_auth: "Bearer &lt;Schlüssel&gt;"</code>. device: interne Nummer (**610) oder Name eines Benutzers. target: Nummer, Kontakt- oder Benutzername. Antworten: 200 mit call_id, 404 nicht gefunden, 409 mehrere passen, 429 gerade schon angerufen.</div></details></div>`;
+}
+async function vcSave(){
+ const body={on:$("#vc_on").checked,nolog:$("#vc_nolog").checked,agent_id:+$("#vc_agent").value,devices:$("#vc_dev").value,names:$("#vc_names").value};
+ const r=await fetch("/api/voice/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+ if(!r.ok){const m=await errText(r,"Speichern fehlgeschlagen");toast(m);const e=$("#vc_msg");if(e){e.textContent="Nicht gespeichert: "+m;e.style.color="var(--bad,#c0392b)"}return}
+ await vcSettings();$("#vc_msg").textContent="Gespeichert.";
+}
+async function vcKey(){
+ const r=await fetch("/api/voice/key",{method:"POST"}),j=await r.json().catch(()=>({}));
+ if(!r.ok)return toast(j.detail||"Fehler");await vcSettings(j.key);
+}
+async function vcKeyDel(){if(!await askConfirm("Schlüssel löschen? Home Assistant kann dann keine Gespräche mehr starten."))return;
+ const r=await fetch("/api/voice/key",{method:"DELETE"});if(!r.ok)return toast("Fehler");await vcSettings();}
 async function anomSettings(){
  const box=$("#anomset");if(!box)return;
  const j=await api("/api/anomalies/config"),c=j.cfg;
@@ -2247,7 +2307,7 @@ function aiNameSample(){
 const SGROUPS=[["Allgemein",["Einrichtungsassistent","Grundkonfiguration","Geschäftszeiten","Aufbewahrung"]],
  ["KI",["Stimme der KI","Auswertung der Gespräche","Assistent (Chat)","Google-Zugang (Datenschutz)","Kostenbremse"]],
  ["Telefonie",["Aufzeichnung von Gesprächen","Klingeln der Telefone","Rückfrage vor dem Verbinden","Wartemusik"]],
- ["Anbindungen",["Google Gemini","Fritzbox","Google Kalender"]],
+ ["Anbindungen",["Google Gemini","Fritzbox","Google Kalender","Sprachbefehle"]],
  ["Diagnose",["Auffälligkeiten erkennen","Assistent: Änderungsprotokoll"]]];
 function settingsCards(){return [...document.querySelectorAll("#m .scard")]}
 function cardTitle(c){const t=c.querySelector(".sec");return t&&t.childNodes[0]&&t.childNodes[0].textContent.trim()||(t?t.textContent.trim():"")}
@@ -2262,7 +2322,7 @@ function settingsNav(){
  nav.innerHTML=names.map(g=>`<button data-g="${g}" class="${g===cur?"on":""}" onclick="settingsGroup('${g}')">${g}<span class=cnt>${cards.filter(c=>cardGroup(c)===g).length}</span></button>`).join("");
  if(!window._snavObs){window._snavObs=new MutationObserver(()=>{clearTimeout(window._snavT);window._snavT=setTimeout(()=>{if($("#snav_c"))settingsNav()},150)})}
  window._snavObs.disconnect();
- ["connset","holdset","gcalset","anomset"].forEach(id=>{const e=$("#"+id);if(e)window._snavObs.observe(e,{childList:true})});
+ ["connset","holdset","gcalset","anomset","vcset"].forEach(id=>{const e=$("#"+id);if(e)window._snavObs.observe(e,{childList:true})});
  settingsFilter();
 }
 function settingsGroup(g){window._sg=g;try{localStorage.setItem("setgrp",g)}catch(e){}const q=$("#snav_q");if(q)q.value="";settingsNav()}
@@ -2279,7 +2339,7 @@ function settingsNavKey(e){
  if(e.key==="Escape"){e.target.value="";settingsFilter()}
 }
 async function settingsView(){
- const [st,tracks,vs]=await Promise.all([api("/api/settings"),api("/api/hold-tracks"),api("/api/voices")]);budget=st.budget_eur;setTimeout(gcalSettings,0);setTimeout(connSettings,0);setTimeout(holdSettings,0);setTimeout(anomSettings,0);setTimeout(asstLogLoad,0);
+ const [st,tracks,vs]=await Promise.all([api("/api/settings"),api("/api/hold-tracks"),api("/api/voices")]);budget=st.budget_eur;setTimeout(gcalSettings,0);setTimeout(connSettings,0);setTimeout(holdSettings,0);setTimeout(anomSettings,0);setTimeout(vcSettings,0);setTimeout(asstLogLoad,0);
  $("#m").innerHTML=`<div class=head><div><h2><svg class=ic><use href="#i-settings"/></svg>Einstellungen</h2><p class=sub style="margin:0">Gilt für das ganze Telefonsystem.</p></div></div>
  <div class=snav id=snav><input id=snav_q type=search placeholder="Einstellung suchen …" autocomplete=off oninput="settingsFilter()" onkeydown="settingsNavKey(event)"><div class=stabs id=snav_c></div><div id=snav_none class=hint style="display:none;margin-top:8px">Keine Einstellung gefunden.</div></div>
  <div class="panel pad scard"><div class=sec>Einrichtungsassistent</div>
@@ -2373,6 +2433,7 @@ async function settingsView(){
  <div id=holdset></div>
  <div id=gcalset></div>
  <div id=anomset></div>
+ <div id=vcset></div>
  <div class="panel pad scard"><div class=sec>Assistent: Änderungsprotokoll</div><p class=hint style="margin-top:0">Alle Änderungen, die Benutzer über den Assistenten (💬 bzw. Lieschen unten rechts) übernommen haben, mit vorher → nachher. „Rückgängig“ stellt den vorherigen Stand über dieselbe Speicherlogik wieder her; das geht nicht mehr, wenn dort inzwischen etwas anderes geändert wurde.</p><div id=asstlog class=hint>Lädt …</div></div>
  <div class=hint style="margin-top:6px">Die KI stellt sich als Telefonassistent vor und nennt keine Namen, die hier oder im Agenten nicht stehen. Firmen- oder Personennamen müssen also hier stehen.</div>`;
  settingsNav();

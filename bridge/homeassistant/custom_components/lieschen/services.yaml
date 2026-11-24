@@ -1,0 +1,43 @@
+verbinden:
+  fields:
+    device:
+      required: true
+      example: "Headset 1"
+      selector:
+        text:
+    target:
+      required: true
+      example: "Max Handy"
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: lieschen
+assistent:
+  fields:
+    device:
+      required: true
+      example: "Headset 1"
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: lieschen
+auflegen:
+  fields:
+    call_id:
+      selector:
+        number:
+          min: 1
+          max: 100000000
+          mode: box
+    device:
+      example: "Headset 1"
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: lieschen

@@ -1,0 +1,159 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Lieschen verbinden",
+        "description": "Adresse von Lieschen (z. B. http://192.168.1.10:8091) und der Schlüssel aus Lieschen > Einstellungen > Anbindungen > Sprachbefehle.",
+        "data": {
+          "url": "Adresse",
+          "api_key": "Schlüssel"
+        }
+      },
+      "reconfigure": {
+        "title": "Lieschen ändern",
+        "description": "Schlüssel leer lassen, um den bisherigen zu behalten.",
+        "data": {
+          "url": "Adresse",
+          "api_key": "Neuer Schlüssel"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Lieschen ist unter dieser Adresse nicht erreichbar.",
+      "invalid_auth": "Der Schlüssel ist falsch.",
+      "disabled": "Sprachbefehle sind in Lieschen ausgeschaltet oder es ist kein Schlüssel gesetzt.",
+      "unknown": "Unerwarteter Fehler, siehe Protokoll."
+    },
+    "abort": {
+      "already_configured": "Diese Lieschen-Adresse ist schon eingerichtet.",
+      "reconfigure_successful": "Gespeichert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schalter",
+        "description": "Schalter für Alexa und Automationen. An = das Gerät klingelt, nach dem Abheben wird verbunden; aus = auflegen.\n\n{switches}",
+        "menu_options": {
+          "add": "Schalter hinzufügen",
+          "remove": "Schalter entfernen",
+          "text": "Alle als Text bearbeiten",
+          "finish": "Speichern und schließen",
+          "settings": "Verhalten der Schalter"
+        }
+      },
+      "add": {
+        "title": "Schalter hinzufügen",
+        "description": "Gerät und Ziel aus Lieschen auswählen oder eintippen (Nummer oder Name). Ziel „KI“: die KI meldet sich und verbindet auf Wunsch.",
+        "data": {
+          "device": "Gerät (klingelt zuerst)",
+          "target": "Ziel",
+          "name": "Name des Schalters (leer = automatisch)"
+        }
+      },
+      "remove": {
+        "title": "Schalter entfernen",
+        "data": {
+          "remove": "Entfernen"
+        }
+      },
+      "text": {
+        "title": "Alle Schalter als Text",
+        "description": "Je Zeile: Name | Gerät | Ziel (Ziel KI = die KI verbindet auf Wunsch).",
+        "data": {
+          "switches": "Schalter"
+        }
+      },
+      "settings": {
+        "title": "Verhalten der Schalter",
+        "description": "Taster: der Schalter ist nach dem Einschalten mindestens die eingestellte Zeit an und geht dann von selbst aus (für Alexa empfohlen). Fehler meldet dann der Sensor „Anruf“ (Stand „Fehler“) und das Ereignis lieschen_call. An während des Gesprächs: der Schalter bleibt an, bis das Gespräch endet; ausschalten legt auf.",
+        "data": {
+          "switch_mode": "Verhalten",
+          "min_on": "Mindestens an"
+        }
+      }
+    },
+    "error": {
+      "bad_line": "Zeile {line}: erwartet Name | Gerät | Ziel (Name nur einmal).",
+      "duplicate": "Diesen Namen gibt es schon.",
+      "missing": "Gerät und Ziel angeben."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "anruf": {
+        "name": "Anruf",
+        "state": {
+          "bereit": "Bereit",
+          "klingelt": "Telefon klingelt",
+          "abgenommen": "Abgenommen, wählt",
+          "ki": "KI spricht",
+          "verbunden": "Verbunden",
+          "beendet": "Beendet",
+          "nicht_erreicht": "Nicht erreicht",
+          "fehler": "Fehler"
+        }
+      }
+    }
+  },
+  "services": {
+    "verbinden": {
+      "name": "Verbinden",
+      "description": "Das Gerät klingelt; nach dem Abheben wählt Lieschen das Ziel (ohne KI).",
+      "fields": {
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename aus Lieschen, **NNN oder Benutzername."
+        },
+        "target": {
+          "name": "Ziel",
+          "description": "Nummer, Kontakt oder Benutzer."
+        },
+        "config_entry_id": {
+          "name": "Lieschen",
+          "description": "Nur nötig bei mehreren Lieschen."
+        }
+      }
+    },
+    "assistent": {
+      "name": "KI anrufen lassen",
+      "description": "Das Gerät klingelt; nach dem Abheben meldet sich die KI und verbindet auf Wunsch.",
+      "fields": {
+        "device": {
+          "name": "Gerät",
+          "description": "Gerätename aus Lieschen, **NNN oder Benutzername."
+        },
+        "config_entry_id": {
+          "name": "Lieschen",
+          "description": "Nur nötig bei mehreren Lieschen."
+        }
+      }
+    },
+    "auflegen": {
+      "name": "Auflegen",
+      "description": "Laufenden Sprachbefehl-Anruf beenden (erst nach dem Abheben möglich).",
+      "fields": {
+        "call_id": {
+          "name": "Anruf-ID",
+          "description": "call_id aus der Antwort von verbinden/assistent."
+        },
+        "device": {
+          "name": "Gerät",
+          "description": "Oder: letzter laufender Anruf dieses Geräts."
+        },
+        "config_entry_id": {
+          "name": "Lieschen",
+          "description": "Nur nötig bei mehreren Lieschen."
+        }
+      }
+    }
+  },
+  "selector": {
+    "switch_mode": {
+      "options": {
+        "taster": "Taster (geht nach der Zeit aus)",
+        "gespraech": "An während des Gesprächs"
+      }
+    }
+  }
+}

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 
-from . import hold, labels as lbls, agents, ami, analyze, anomaly, assistant, astconf, config, costguard, db, flow, gclient, logmask, fritzconf, gcal, linediag, mp3, outrec, presence, notify, numinfo, plugins, protocol, remote, dialrules as drules, fritz, fritzweb, models, schedule, rate, rectrans, users, voices
+from . import hold, labels as lbls, agents, ami, analyze, anomaly, assistant, astconf, config, costguard, db, flow, gclient, logmask, fritzconf, gcal, linediag, mp3, outrec, presence, notify, numinfo, plugins, protocol, remote, voicecmd, dialrules as drules, fritz, fritzweb, models, schedule, rate, rectrans, users, voices
 from . import audio as aiaudio
 from . import call as call_mod
 from .call import Call
@@ -188,6 +188,10 @@ async def security_headers(request: Request, call_next):
 def validate_agent(d):
     """Aktionen und Ziele beim Speichern pruefen (eindeutige Namen, erlaubte Ziele)."""
     from .call import _slug
+    if "name" in d:
+        d["name"] = str(d.get("name") or "").strip()
+        if not d["name"]:
+            raise HTTPException(400, "Bitte einen Namen für den Agenten eingeben (Reiter Allgemein)")
     if (d.get("transfer_to") or "").strip():
         try:      # mehrere Ziele (Komma oder +) klingeln gleichzeitig
             d["transfer_to"] = "+".join(ami.dial_list(str(d["transfer_to"]).replace("+", ",")))
@@ -2178,6 +2182,15 @@ async def put_contact_salutation(cid: int, request: Request):
     return {"ok": True}
 
 
+@app.put("/api/contacts/{cid}/aliases", dependencies=[Depends(auth)])
+async def put_contact_aliases(cid: int, request: Request):
+    """Weitere Namen setzen, unter denen die KI den Kontakt findet - auch bei Kontakten aus der Fritzbox."""
+    al = db.clean_aliases((await request.json()).get("aliases"))
+    if not db.x_count("UPDATE contacts SET aliases=? WHERE id=?", (al, cid)):
+        raise HTTPException(404)
+    return {"ok": True, "aliases": al}
+
+
 @app.delete("/api/contacts/{cid}", dependencies=[Depends(auth)])
 def del_contact(cid: int):
     locked(cid)
@@ -2185,9 +2198,9 @@ def del_contact(cid: int):
     return {"ok": True}
 
 
-async def run_originate(cid, uuid, number):
+async def run_originate(cid, uuid, number, variables=None):
     try:
-        ok, reason = await ami.originate(number, uuid)
+        ok, reason = await (ami.originate(number, uuid, variables=variables) if variables else ami.originate(number, uuid))
     except Exception as e:
         log.exception("AMI-Fehler")
         ok, reason = False, f"Asterisk nicht erreichbar ({type(e).__name__})"
@@ -2199,9 +2212,10 @@ async def run_originate(cid, uuid, number):
         hub.publish({"type": "segment", "call_id": cid, "speaker": "system", "ts": time.time(),
                      "text": f"Anruf nicht zustande gekommen: {reason}"})
         hub.publish({"type": "end", "call_id": cid})
+        voicecmd.set_state(cid, "nicht_erreicht", f"Telefon nicht erreicht: {reason}")
 
 
-async def start_outbound(number, name, task, agent, owner="", extra=None, label="Ausgehend"):
+async def start_outbound(number, name, task, agent, owner="", extra=None, label="Ausgehend", variables=None):
     """Startet einen ausgehenden KI-Anruf (fuer die Oberflaeche und fuer Plugins). Gibt die Anruf-ID zurueck."""
     # Ausgehende KI-Anrufe (Assistent ruft an, Kampagnen) nutzen keine Aufzeichnungsregeln: kein KI-Audio, Transkript immer
     agent = dict(agent, record=0, transcribe=0, record_ai=0, stop_cmd=1, rec_rules=[], rec_notice=1, rec_notice_h=1)
@@ -2211,7 +2225,7 @@ async def start_outbound(number, name, task, agent, owner="", extra=None, label=
     CALLS.put(uuid, "pending", {**(extra or {}), "created": time.time(), "uuid": uuid, "from": number, "to": number, "hdr": "", "call_id": cid,
                                 "agent": agent, "direction": "out", "task": task, "contact": name, "owner": (owner or "").strip()})
     hub.publish({"type": "call", "call_id": cid, "caller": label, "called": name or number, "agent": agent["name"], "status": "waehlt"})
-    track(asyncio.create_task(run_originate(cid, uuid, number)))
+    track(asyncio.create_task(run_originate(cid, uuid, number, variables)))
     return cid
 
 
@@ -3021,6 +3035,230 @@ async def record_call(request: Request, user: dict = Depends(user_auth)):
     hub.publish({"type": "call", "call_id": cid, "status": "waehlt"})
     track(asyncio.create_task(run_rec_originate(cid, uuid, device, number, notice)))
     return {"call_id": cid}
+
+
+# --- Sprachbefehle (Home Assistant / Alexa), siehe voicecmd.py ---
+def _vc(fn, *a):
+    try:
+        return fn(*a)
+    except voicecmd.VoiceError as e:
+        raise HTTPException(e.status, str(e))
+
+
+@app.get("/api/voice/settings", dependencies=[Depends(auth)])
+def vc_settings():
+    return voicecmd.settings()
+
+
+@app.put("/api/voice/settings", dependencies=[Depends(auth)])
+async def vc_settings_put(request: Request):
+    _vc(voicecmd.save, await request.json())
+    return voicecmd.settings()
+
+
+@app.post("/api/voice/key", dependencies=[Depends(auth)])
+def vc_key():
+    """Neuen Schluessel erzeugen (der alte gilt dann nicht mehr). Er wird nur dieses eine Mal angezeigt."""
+    return {"key": voicecmd.new_key(), **voicecmd.settings()}
+
+
+@app.delete("/api/voice/key", dependencies=[Depends(auth)])
+def vc_key_del():
+    voicecmd.drop_key()
+    return voicecmd.settings()
+
+
+def _vc_auth(request):
+    ip = request.client.host if request.client else "?"
+    if blocked("vc:" + ip):
+        raise HTTPException(429, "Zu viele Fehlversuche, bitte spaeter erneut")
+    try:
+        voicecmd.check(request.headers)
+    except voicecmd.VoiceError as e:
+        if e.status == 401:
+            throttle("vc:" + ip, False)
+        raise HTTPException(e.status, str(e))
+
+
+async def run_vc_connect(cid, uuid, dev, tgt):
+    try:
+        ok, reason = await ami.originate(dev, uuid, timeout_s=40, context="vc-connect", variables={"TARGET": tgt})
+    except Exception as e:
+        log.exception("AMI-Fehler")
+        ok, reason = False, f"Asterisk nicht erreichbar ({type(e).__name__})"
+    if not ok:
+        db.x("UPDATE calls SET status='nicht erreicht', ended=? WHERE id=?", (time.time(), cid))
+        db.add_segment(cid, "system", f"Das Telefon {dev} wurde nicht erreicht: {reason}")
+        hub.publish({"type": "end", "call_id": cid})
+        voicecmd.set_state(cid, "nicht_erreicht", f"Telefon nicht erreicht: {reason}")
+
+
+@app.post("/api/voice/connect")
+async def vc_connect(request: Request):
+    """Sprachbefehl "verbinde mich mit ...": erst klingelt das Geraet (device, z. B. **610), nach dem Abheben waehlt Asterisk
+    das Ziel (target: Nummer, Mitarbeiter oder Kontakt aus dem Telefonbuch). Ohne KI, ohne Aufzeichnung."""
+    _vc_auth(request)
+    d = await request.json()
+    dev = _vc(voicecmd.device, str(d.get("device") or ""))
+    tgt, label = _vc(voicecmd.target, str(d.get("target") or ""))
+    _vc(voicecmd.gate, dev)
+    uuid = str(uuid4())
+    cid = db.x("INSERT INTO calls(uuid,started,caller,called,agent_name,status,direction) VALUES(?,?,?,?,?,?,?)",
+               (uuid, time.time(), f"Sprachbefehl ({dev})", f"{label} ({tgt})" if label else tgt, "Sprachbefehl", "waehlt", "out"))
+    db.add_segment(cid, "system", f"Sprachbefehl: {dev} klingelt, nach dem Abheben wird {label or tgt} angerufen")
+    hub.publish({"type": "call", "call_id": cid, "caller": f"Sprachbefehl ({dev})", "called": label or tgt, "agent": "Sprachbefehl", "status": "waehlt"})
+    voicecmd.track(cid, uuid, "verbinden", dev, label or tgt)
+    track(asyncio.create_task(run_vc_connect(cid, uuid, dev, tgt)))
+    return {"call_id": cid, "device": dev, "target": label or tgt, "state": "klingelt"}
+
+
+@app.get("/internal/vc-event", response_class=PlainTextResponse)
+async def vc_event(request: Request, uuid: str, ev: str = "", st: str = "", chan: str = "", ep: str = "", uri: str = ""):
+    """Dialplan [vc-connect], [outbound-ai] mit VC=1, [vc-ans], [vc-end]: up = Geraet hat abgenommen, Ziel wird gewaehlt;
+    ki = Geraet hat abgenommen, die KI spricht; conn = Ziel hat abgenommen; end = aufgelegt (st = DIALSTATUS);
+    who = bei mehreren Telefonen: dieses hat abgehoben (ep = Endpunkt, uri = SIP-Adresse, [vc-who])."""
+    if not internal_ok(request):
+        raise HTTPException(403)
+    s = voicecmd.by_uuid(uuid)
+    if s:
+        if ev in ("up", "ki"):
+            voicecmd.set_state(s["call_id"], "abgenommen" if ev == "up" else "ki", chan=chan)
+        elif ev == "conn":
+            voicecmd.set_state(s["call_id"], "verbunden")
+        elif ev == "who":
+            voicecmd.set_answered(s, voicecmd.answered_dev(ep, uri))
+        elif ev == "end":
+            voicecmd.ended(s, st)
+    c = db.q("SELECT id, status FROM calls WHERE uuid=? AND agent_name='Sprachbefehl'", (uuid,))
+    if not c:
+        return "ok"
+    cid = c[0]["id"]
+    if ev == "up":
+        db.x("UPDATE calls SET status='aktiv', started=? WHERE id=?", (time.time(), cid))
+        hub.publish({"type": "call", "call_id": cid, "status": "aktiv"})
+    elif ev == "end":
+        ok = st == "ANSWER"
+        db.x("UPDATE calls SET status=?, ended=? WHERE id=?", ("durchgestellt" if ok else "nicht erreicht", time.time(), cid))
+        if not ok:
+            why = {"BUSY": "besetzt", "NOANSWER": "keine Antwort", "CONGESTION": "nicht erreichbar", "CHANUNAVAIL": "nicht erreichbar",
+                   "CANCEL": "vorher aufgelegt"}.get(st, st or "aufgelegt")
+            db.add_segment(cid, "system", f"Ziel nicht erreicht ({why})")
+        hub.publish({"type": "end", "call_id": cid})
+    return "ok"
+
+
+@app.post("/api/voice/assistant")
+async def vc_assistant(request: Request):
+    """Sprachbefehl "Lieschen, ruf mich an": das Geraet klingelt, die KI meldet sich, fragt, mit wem verbunden werden soll, und verbindet."""
+    _vc_auth(request)
+    d = await request.json()
+    dev = _vc(voicecmd.device, str(d.get("device") or ""))
+    agent = _vc(voicecmd.agent)
+    _vc(voicecmd.gate, dev)
+    st = voicecmd.owner(dev)
+    first = ((st or {}).get("name") or "").split()[:1]
+    cid = await start_outbound(dev, (st or {}).get("name") or "", "Sprachbefehl: verbinden auf Wunsch", agent, label=f"Sprachbefehl ({dev})",
+                               extra={"voice": {"device": dev, "first": first[0] if first else "", "staff_id": (st or {}).get("id")}},
+                               variables={"VC": "1"})
+    row = db.q("SELECT uuid FROM calls WHERE id=?", (cid,))
+    voicecmd.track(cid, row[0]["uuid"] if row else "", "ki", dev, "KI")
+    return {"call_id": cid, "device": dev, "state": "klingelt"}
+
+
+@app.get("/api/voice/info")
+async def vc_info(request: Request):
+    """Fuer Home Assistant: Geraete (Namen), Assistent und Stand der Sprachbefehl-Anrufe."""
+    _vc_auth(request)
+    try:
+        ag = voicecmd.agent()["name"]
+    except voicecmd.VoiceError:
+        ag = ""
+    return {"devices": voicecmd.device_list(), "targets": voicecmd.target_list(), "agent": ag, "calls": voicecmd.snapshot()}
+
+
+@app.get("/api/voice/calls/{cid}")
+async def vc_call(cid: int, request: Request):
+    _vc_auth(request)
+    s = voicecmd.STATES.get(cid)
+    if not s:
+        raise HTTPException(404, "Unbekannter Sprachbefehl-Anruf")
+    return voicecmd.public(s)
+
+
+@app.post("/api/voice/hangup")
+async def vc_hangup(request: Request):
+    """Sprachbefehl-Anruf beenden (call_id, oder device: der letzte laufende Anruf dieses Geraets). Erst nach dem Abheben moeglich."""
+    _vc_auth(request)
+    d = await request.json()
+    cid = int(d.get("call_id") or 0)
+    if not cid and d.get("device"):
+        dev = _vc(voicecmd.device, str(d["device"]))
+        run = [s for s in voicecmd.STATES.values() if s["device"] == dev and s["state"] not in voicecmd.FINAL]
+        cid = max((s["call_id"] for s in run), default=0)
+    s = voicecmd.STATES.get(cid)
+    if not s:
+        raise HTTPException(404, "Kein laufender Sprachbefehl-Anruf")
+    if s["state"] in voicecmd.FINAL:
+        return voicecmd.public(s)
+    if not s["chan"]:
+        raise HTTPException(409, "Das Telefon klingelt noch, auflegen geht erst nach dem Abheben")
+    resp, _ = await ami.action("Hangup", {"Channel": s["chan"]})
+    if resp.get("Response") != "Success":
+        log.warning("Sprachbefehl %s auflegen: %s", cid, resp.get("Message", "Fehler"))
+        raise HTTPException(409, "Auflegen fehlgeschlagen (Anruf schon beendet?)")
+    return voicecmd.public(s)
+
+
+HA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "homeassistant", "custom_components", "lieschen")
+
+
+@app.get("/ha/lieschen.tar.gz", include_in_schema=False)
+def ha_integration():
+    """Home-Assistant-Integration als Archiv (custom_components/lieschen), nur bei eingeschalteten Sprachbefehlen. Enthaelt keine
+    Zugangsdaten. Im Terminal von Home Assistant: curl -s http://<lieschen>/ha/lieschen.tar.gz | tar xz -C /config"""
+    if db.get_meta("vc_on", "0") != "1" or not os.path.isdir(HA_DIR):
+        raise HTTPException(404)
+    import io
+    import tarfile
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as t:
+        for root, dirs, files in os.walk(HA_DIR):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
+            for f in sorted(files):
+                full = os.path.join(root, f)
+                t.add(full, arcname=os.path.join("custom_components", "lieschen", os.path.relpath(full, HA_DIR)))
+    return Response(buf.getvalue(), media_type="application/gzip",
+                    headers={"Content-Disposition": "attachment; filename=lieschen.tar.gz", "Cache-Control": "no-cache"})
+
+
+@app.get("/api/voice/events")
+async def vc_events(request: Request):
+    """Server-Sent Events fuer Home Assistant: zuerst "snapshot" (Liste), dann je Aenderung ein Anruf-Stand (data), sonst "ping"."""
+    _vc_auth(request)
+    q = hub.subscribe()
+
+    async def gen():
+        try:
+            yield "event: snapshot\ndata: " + json.dumps(voicecmd.snapshot(), separators=(",", ":")) + "\n\n"
+            checked = time.monotonic()
+            while not await request.is_disconnected():
+                if time.monotonic() - checked > 60:          # Schluessel geaendert oder Funktion aus: Strom beenden
+                    checked = time.monotonic()
+                    try:
+                        voicecmd.check(request.headers)
+                    except voicecmd.VoiceError:
+                        yield "event: bye\ndata: 1\n\n"
+                        break
+                try:
+                    ev = await asyncio.wait_for(q.get(), 15)
+                except asyncio.TimeoutError:
+                    yield "event: ping\ndata: 1\n\n"
+                    continue
+                if ev.get("type") == "vc":
+                    yield "data: " + json.dumps(ev["call"], separators=(",", ":")) + "\n\n"
+        finally:
+            hub.unsubscribe(q)
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 def _out_user_id(sid):

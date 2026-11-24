@@ -3,6 +3,8 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app app
+# Home-Assistant-Integration (wird unter /ha/lieschen.tar.gz zum Einspielen angeboten)
+COPY homeassistant/custom_components/lieschen homeassistant/custom_components/lieschen
 # Laeuft (noch) als root: data/ ist teils root-, teils benutzereigen und wird per Bind-Mount geteilt.
 # Umstellung auf einen unprivilegierten USER: docs/wiki/Betrieb-und-Ueberwachung.md ("Container-Haertung").
 CMD ["python", "-m", "app.main"]
