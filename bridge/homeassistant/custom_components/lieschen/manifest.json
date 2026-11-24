@@ -1,12 +1,15 @@
 {
   "domain": "lieschen",
   "name": "Lieschen Telefonassistent",
-  "codeowners": [],
+  "codeowners": [
+    "@Lu-Fi"
+  ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/Lu-Fi/lieschenmueller",
+  "documentation": "https://github.com/Lu-Fi/lieschen-ha",
   "integration_type": "hub",
   "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Lu-Fi/lieschen-ha/issues",
   "requirements": [],
   "version": "0.1.0"
 }

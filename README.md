@@ -145,3 +145,8 @@ Sicherung = der Ordner `data/`. Details: [Wiki → Betrieb](docs/wiki/Betrieb-un
 Entwickelt und getestet auf Fedora mit Podman Compose gegen eine echte Fritzbox. Der Betrieb auf TrueNAS SCALE ist vorbereitet,
 aber noch nicht erprobt. Viele Funktionen wurden mit simulierten Anrufen geprüft; einzelne Abläufe (z. B. Fernabfrage per Sprache,
 Kampagnen-Anrufe, Outlook-Versand) stehen noch ohne Erprobung am echten Telefon bzw. Konto.
+
+## Lizenz
+GNU General Public License v3.0 (`LICENSE`). Die Home-Assistant-Integration unter `bridge/homeassistant` steht unter der
+MIT-Lizenz (`bridge/homeassistant/LICENSE`) und wird zusätzlich als eigenes Repository veröffentlicht:
+https://github.com/Lu-Fi/lieschen-ha
